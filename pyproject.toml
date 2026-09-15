@@ -1,0 +1,23 @@
+[project]
+name = "fundit-ai-funding-story"
+version = "0.2.0"
+description = "Funding Story AI API and durable generation worker"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+ "fastapi>=0.115", "uvicorn[standard]>=0.30", "pydantic-settings>=2",
+ "langgraph==1.2.11", "langgraph-checkpoint-postgres>=3",
+ "langsmith>=0.4", "google-genai>=1", "psycopg[binary,pool]>=3.2",
+ "celery[redis]>=5.6", "boto3>=1.35", "pillow>=11", "python-multipart>=0.0.20",
+]
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.28", "ruff>=0.12"]
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+[tool.hatch.build.targets.wheel]
+packages = ["src/funding_story"]

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: funding_ai
+      POSTGRES_PASSWORD: local-ai-only
+      POSTGRES_DB: funding_ai
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["ai-db:/var/lib/postgresql/data", "./scripts/postgres:/docker-entrypoint-initdb.d:ro"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U funding_ai"]
+      interval: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:56379:6379"]
+    volumes: ["ai-queue:/data"]
+volumes:
+  ai-db:
+  ai-queue:
