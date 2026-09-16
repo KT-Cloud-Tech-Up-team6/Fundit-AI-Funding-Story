@@ -12,7 +12,7 @@ jobs:
           POSTGRES_DB: funding_ai
         ports: ['55432:5432']
         options: >-
-          --health-cmd 'pg_isready -U funding_ai'
+          --health-cmd="pg_isready -U funding_ai"
           --health-interval 3s --health-retries 20
     env:
       AI_SERVICE_TOKEN: ci-only
