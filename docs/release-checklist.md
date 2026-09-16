@@ -1,6 +1,6 @@
 # GitHub 업로드 준비
 
-대상 이름: `Fundit-AI-Funding-Story`. AI API 저장소 단독으로 준비한다. 실제 원격 업로드·PR·팀 메시지 발송은 수행하지 않는다.
+대상 이름: `Fundit-AI-Funding-Story`. AI API 저장소 단독으로 준비한다. 사용자 승인으로 조직 저장소 생성·연결 및 main push를 완료했다. PR·팀 메시지 발송은 수행하지 않았다.
 
 ## 포함
 
@@ -23,7 +23,8 @@
 - [x] Markdown 상대 링크·OpenAPI 일치
 - [x] 업로드 파일/비밀정보 제외 점검
 - [x] 로컬 변경 커밋
-- [ ] 원격 저장소 생성 또는 remote 지정 — 이번 범위 밖
-- [ ] push 및 원격 CI — 이번 범위 밖
+- [x] 조직 공개 저장소 생성 및 origin 지정: https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story
+- [x] main push 완료
+- [ ] 원격 CI 성공 확인 — 실행 중
 
 CI에는 PostgreSQL, Chromium, Pretendard 설치를 포함한다. 원격 실행 전까지 녹색 CI 결과를 주장하지 않는다. Docker 실행과 운영 구성은 별도 확인 사항이다.
