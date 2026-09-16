@@ -5,7 +5,7 @@ import pytest
 
 from funding_story.graph import format_graph
 from funding_story.models import CopyResult, ProjectInput, Review
-from funding_story.planner import plan, validate_copy
+from funding_story.planner import CATEGORIES, TEMPLATE, plan, requirements, validate_copy
 from funding_story.provider import transient_call
 
 
@@ -93,6 +93,48 @@ def test_template_preserved_and_price_bound():
         if n["kind"] == "text" and n["id"].startswith("hero.point")
     )
     assert len([n for n in scene["blocks"][-1]["nodes"] if n["kind"] == "image"]) == 3
+
+
+def test_block_library_uses_reference_category_order_and_valid_memberships():
+    expected = [
+        "표",
+        "그래프",
+        "메리트",
+        "사용방법",
+        "포트폴리오",
+        "브랜드 스토리",
+        "고객 리뷰",
+        "제품 비교",
+        "추천 고객",
+        "메인 비주얼",
+        "상세 포인트",
+        "구매 옵션 선택",
+        "상품 정보 고시",
+        "문제 제기/공감",
+        "사용 전/후 비교",
+        "배송/출고 속도 강조",
+        "인증·신뢰",
+        "FAQ",
+    ]
+    categories = TEMPLATE["blockLibrary"]["categories"]
+    assert [category["label"] for category in categories] == expected
+    assert [category["order"] for category in categories] == list(range(1, 19))
+    assert len(CATEGORIES) == len(categories)
+    for block in TEMPLATE["scene"]["blocks"]:
+        assert block["categoryIds"]
+        assert set(block["categoryIds"]) <= set(CATEGORIES)
+
+
+def test_generation_requirements_expose_block_categories():
+    x = ProjectInput.model_validate(json.loads(Path("tests/fixtures/appliance.json").read_text()))
+    x.asset_ids = ["reference"]
+    scene, fixed = plan(x, review())
+    by_id = {item["id"]: item for item in requirements(scene, fixed)}
+    assert by_id["hero"]["category_ids"] == ["main-visual"]
+    assert by_id["problem"]["category_ids"] == ["problem-empathy"]
+    assert by_id["comparison"]["category_ids"] == ["product-comparison", "table"]
+    assert by_id["benefit-1"]["category_ids"] == ["detail-point"]
+    assert by_id["rewards"]["category_ids"] == ["purchase-option"]
 
 
 def test_missing_price_never_inferred():

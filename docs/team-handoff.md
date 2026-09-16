@@ -9,7 +9,7 @@
 - 출력: 블록별 PNG 자산 매니페스트, 프로젝트 예산~신뢰와 안전 입력 텍스트, 공통 안내 key, 후속 AI용 summary/storyline.
 - 안정성: 프로젝트 범위, revision, message/idempotency key, 공급자/형식 재시도 분리, 성공 이미지 재사용.
 - 수명주기: BE 저장 성공 전 임시 후보 보존, commit 후 scene·snapshot·중간 생성 이미지·run checkpoint 정리.
-- 검증: 37개 자동 테스트, 로컬 HTTP health/auth/OpenAPI, 패키지 빌드. GitHub CI 성공. Docker 이미지 실행은 미검증.
+- 검증: 39개 자동 테스트, 로컬 HTTP health/auth/OpenAPI, 패키지 빌드. GitHub CI 성공. Docker 이미지 실행은 미검증.
 
 ## 프론트엔드팀
 

@@ -1,4 +1,28 @@
 {
+  "blockLibrary": {
+    "version": 1,
+    "source": "sang-se-editor",
+    "categories": [
+      {"id": "table", "label": "표", "order": 1},
+      {"id": "graph", "label": "그래프", "order": 2},
+      {"id": "merit", "label": "메리트", "order": 3},
+      {"id": "how-to", "label": "사용방법", "order": 4},
+      {"id": "portfolio", "label": "포트폴리오", "order": 5},
+      {"id": "brand-story", "label": "브랜드 스토리", "order": 6},
+      {"id": "customer-review", "label": "고객 리뷰", "order": 7},
+      {"id": "product-comparison", "label": "제품 비교", "order": 8},
+      {"id": "recommended-for", "label": "추천 고객", "order": 9},
+      {"id": "main-visual", "label": "메인 비주얼", "order": 10},
+      {"id": "detail-point", "label": "상세 포인트", "order": 11},
+      {"id": "purchase-option", "label": "구매 옵션 선택", "order": 12},
+      {"id": "product-information", "label": "상품 정보 고시", "order": 13},
+      {"id": "problem-empathy", "label": "문제 제기/공감", "order": 14},
+      {"id": "before-after", "label": "사용 전/후 비교", "order": 15},
+      {"id": "shipping-speed", "label": "배송/출고 속도 강조", "order": 16},
+      {"id": "certification-trust", "label": "인증·신뢰", "order": 17},
+      {"id": "faq", "label": "FAQ", "order": 18}
+    ]
+  },
   "scene": {
     "version": 1,
     "templateId": "appliance-reference-konva",
@@ -8,6 +32,7 @@
       {
         "id": "hero",
         "label": "히어로",
+        "categoryIds": ["main-visual"],
         "areas": [
           "introduction"
         ],
@@ -260,6 +285,7 @@
       {
         "id": "problem",
         "label": "문제 카드",
+        "categoryIds": ["problem-empathy"],
         "areas": [
           "introduction"
         ],
@@ -593,6 +619,7 @@
       {
         "id": "transition",
         "label": "제품 전환 문구",
+        "categoryIds": ["merit", "detail-point"],
         "areas": [
           "introduction"
         ],
@@ -694,6 +721,7 @@
       {
         "id": "product-visual",
         "label": "제품 전면 비주얼",
+        "categoryIds": ["main-visual"],
         "areas": [
           "introduction"
         ],
@@ -730,6 +758,7 @@
       {
         "id": "positioning",
         "label": "강력함과 슬림함",
+        "categoryIds": ["merit"],
         "areas": [
           "introduction"
         ],
@@ -863,6 +892,7 @@
       {
         "id": "product-gallery",
         "label": "제품 사용 이미지 모음",
+        "categoryIds": ["detail-point"],
         "areas": [
           "introduction"
         ],
@@ -939,6 +969,7 @@
       {
         "id": "comparison",
         "label": "비교 카드",
+        "categoryIds": ["product-comparison", "table"],
         "areas": [
           "introduction"
         ],
@@ -1799,6 +1830,7 @@
       {
         "id": "promise",
         "label": "핵심 가치와 3대 특징",
+        "categoryIds": ["merit", "brand-story"],
         "areas": [
           "introduction"
         ],
@@ -2016,6 +2048,7 @@
       {
         "id": "feature-wireless",
         "label": "Point 01 · 선 없는 자유로움 완벽한 무선 청소",
+        "categoryIds": ["detail-point"],
         "areas": [
           "introduction"
         ],
@@ -2141,6 +2174,7 @@
       {
         "id": "feature-slim",
         "label": "Point 02 · 틈새까지 쏙 극대화된 슬림 디자인",
+        "categoryIds": ["detail-point"],
         "areas": [
           "introduction"
         ],
@@ -2253,6 +2287,7 @@
       {
         "id": "feature-handling",
         "label": "Point 03 · 한 손으로 가뿐히 일체형 핸들링",
+        "categoryIds": ["detail-point", "how-to"],
         "areas": [
           "introduction"
         ],
@@ -2365,6 +2400,7 @@
       {
         "id": "feature-dustbin",
         "label": "Point 04 · 눈으로 바로 확인 투명 먼지통 구조",
+        "categoryIds": ["detail-point", "how-to"],
         "areas": [
           "introduction"
         ],
@@ -2478,6 +2514,7 @@
       {
         "id": "feature-ergonomic",
         "label": "Point 05 · 인체공학 스틱형",
+        "categoryIds": ["detail-point"],
         "areas": [
           "introduction"
         ],
@@ -2604,6 +2641,7 @@
       {
         "id": "feature-brush",
         "label": "Point 06 · 구석구석 꼼꼼히 유연한 브러시 헤드",
+        "categoryIds": ["detail-point", "how-to"],
         "areas": [
           "introduction"
         ],
@@ -2716,6 +2754,7 @@
       {
         "id": "rewards",
         "label": "선물 구성",
+        "categoryIds": ["purchase-option"],
         "areas": [
           "rewards"
         ],
@@ -3183,6 +3222,7 @@
       {
         "id": "information",
         "label": "프로젝트 운영 정보",
+        "categoryIds": ["product-information"],
         "areas": [
           "budget",
           "schedule",

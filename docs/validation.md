@@ -5,7 +5,7 @@
 ## 자동 검증
 
 - Ruff: `src`, `tests`, `scripts` 검사.
-- pytest: 37개 통과. 모델 호출은 mock이며 PostgreSQL·Chromium 렌더링은 실제 사용.
+- pytest: 39개 통과. 모델 호출은 mock이며 PostgreSQL·Chromium 렌더링은 실제 사용.
 - 세션 진입·메시지·SSE·확인 revision·idempotency·프로젝트 자산 격리.
 - 필수 블록과 선택 Point·Information 구성, 실패 이미지 슬롯만 재시도.
 - PNG export·BE 저장 commit·임시 데이터 정리·이미지 자산 수명주기.

@@ -113,6 +113,10 @@ Redis는 Celery 전달용이며 결과 원본이 아니다. PostgreSQL이 세션
 `resources/template.json`의 `composition`이 포함 여부와 순서를 소유한다.
 필수 순서는 hero → problem → transition → product-visual → positioning → product-gallery → comparison → promise → Point → rewards다.
 
+`blockLibrary.categories`는 블록 라이브러리의 공통 분류 체계다. 상세뚝딱 편집기에서 확인한 순서와 명칭을 유지한다: 표, 그래프, 메리트, 사용방법, 포트폴리오, 브랜드 스토리, 고객 리뷰, 제품 비교, 추천 고객, 메인 비주얼, 상세 포인트, 구매 옵션 선택, 상품 정보 고시, 문제 제기/공감, 사용 전/후 비교, 배송/출고 속도 강조, 인증·신뢰, FAQ. 각 블록은 하나 이상의 `categoryIds`를 가지며 첫 항목을 주 카테고리로 사용한다. 아직 구현된 블록이 없는 카테고리도 이후 템플릿 다양화를 위해 유지한다.
+
+카테고리는 블록 검색·후보 축소용 메타데이터다. 현재 단일 생활가전 템플릿의 필수/선택 구성 규칙을 바꾸거나 LLM에 블록 포함 여부를 다시 위임하지 않는다. 생성 요구사항에는 각 블록의 `category_ids`를 전달해 해당 역할에 맞는 문구와 이미지 생성을 돕는다.
+
 - Point: 확인된 강점당 1개. 3~12개를 유지하며 전부 생략할 수 없다. 각 블록에 strengthId를 연결한다.
 - Information: Review.include_information 기본 false. LLM은 입력에 있는 추가 제품 안내가 Point와 중복되지 않고 슬롯을 추정 없이 채울 수 있을 때만 선택하며 information_reason에 근거를 남긴다.
 - Information은 하단 예산·일정·팀·신뢰와 안전 텍스트와 별개다. 하단 정보만 있다고 포함하지 않는다.

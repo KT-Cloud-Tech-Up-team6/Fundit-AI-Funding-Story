@@ -7,6 +7,7 @@ from .models import ProjectInput, Review
 TEMPLATE = json.loads((Path(__file__).parent / "resources/template.json").read_text())
 COMPOSITION = TEMPLATE["composition"]
 CATALOG = {b["id"]: b for b in TEMPLATE["scene"]["blocks"]}
+CATEGORIES = {category["id"]: category for category in TEMPLATE["blockLibrary"]["categories"]}
 
 
 def plan(project: ProjectInput, review: Review):
@@ -92,6 +93,7 @@ def requirements(scene, fixed):
         {
             "id": b["id"],
             "role": b["label"],
+            "category_ids": b["categoryIds"],
             "strength_id": b.get("strengthId"),
             "texts": [
                 {
