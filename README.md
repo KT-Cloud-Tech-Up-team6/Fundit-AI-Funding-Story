@@ -128,7 +128,7 @@ uv build
 
 Tests use a separate PostgreSQL database and mocked model calls; rendering tests run real Chromium. The [synthetic fixture](tests/fixtures/appliance.json) and [reference image](tests/fixtures/original.png) are test material, not commercial product claims.
 
-Local validation includes 37 tests and an actual 14-block generation/export case. Generated product details can still differ from reference images. Remote CI, production deployment, and cross-team publishing integration are not claimed complete. See [validation scope](docs/validation.md).
+Local validation includes 37 tests and an actual 14-block generation/export case. Generated product details can still differ from reference images. GitHub CI has passed. Production deployment and cross-team publishing integration are not claimed complete. See [validation scope](docs/validation.md).
 
 ## Learn more
 

@@ -25,6 +25,6 @@
 - [x] 로컬 변경 커밋
 - [x] 조직 공개 저장소 생성 및 origin 지정: https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story
 - [x] main push 완료
-- [ ] 원격 CI 성공 확인 — 실행 중
+- [x] 원격 CI 성공 확인 — 테스트·빌드 통과 (35066056106)
 
-CI에는 PostgreSQL, Chromium, Pretendard 설치를 포함한다. 원격 실행 전까지 녹색 CI 결과를 주장하지 않는다. Docker 실행과 운영 구성은 별도 확인 사항이다.
+CI에는 PostgreSQL, Chromium, Pretendard 설치를 포함한다. [GitHub Actions 실행](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story/actions/runs/35066056106)에서 성공을 확인했다. Docker 실행과 운영 구성은 별도 확인 사항이다.

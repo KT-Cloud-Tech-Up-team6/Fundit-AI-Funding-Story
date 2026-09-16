@@ -32,7 +32,7 @@
 - 모든 제품군·모든 입력 길이에서의 생성 품질.
 - 생성 이미지의 버튼·먼지통 등 제품 세부 형상 정밀 재현.
 - 참조 서비스와 모든 픽셀의 동일성.
-- 이번 업로드 구성으로 GitHub Actions 실행 및 Docker 이미지 실행.
+- Docker 이미지 실행.
 - 운영 부하·Chromium 동시성·Gateway/S3/CDN·게시 통합.
 - 타팀 최신 FE/BE 코드에서 신규 프로젝트부터 저장·재조회까지의 최종 연동 승인.
 
@@ -40,4 +40,8 @@
 
 ## 업로드 구성 독립 검증
 
-업로드 후보 49개 파일만 별도 디렉터리로 복사해 기존 .env·생성물·다른 저장소 없이 uv sync --frozen, checksum 폰트 설치, Ruff, pytest 37개, wheel/sdist 빌드를 확인했다. PostgreSQL과 설치된 Chromium은 로컬 실행 환경을 사용했다. wheel의 템플릿·Konva JS·라이선스 포함과 로컬 상태 제외를 확인했다. Markdown 상대 링크와 OpenAPI 코드 일치도 확인했다. 이것은 GitHub CI나 Docker 이미지 실행을 대신하지 않는다.
+업로드 후보 49개 파일만 별도 디렉터리로 복사해 기존 .env·생성물·다른 저장소 없이 uv sync --frozen, checksum 폰트 설치, Ruff, pytest 37개, wheel/sdist 빌드를 확인했다. PostgreSQL과 설치된 Chromium은 로컬 실행 환경을 사용했다. wheel의 템플릿·Konva JS·라이선스 포함과 로컬 상태 제외를 확인했다. Markdown 상대 링크와 OpenAPI 코드 일치도 확인했다. 별도로 아래 GitHub CI 실행을 확인했다. Docker 이미지 실행을 대신하지 않는다.
+
+## GitHub CI
+
+커밋 b7a0521의 [Actions 실행](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story/actions/runs/35066056106)이 성공했다. Ubuntu의 PostgreSQL·Chromium·폰트 설치, Ruff, pytest, uv build를 통과했다. 최초 실행에서 확인된 Docker health 명령의 인용부호 오류를 수정 후 재실행한 결과다.
