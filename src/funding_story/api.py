@@ -20,6 +20,7 @@ from .models import (
     ProjectInput,
     Review,
     RunRequest,
+    output_information,
 )
 from .renderer import render_scene
 from .tasks import execute
@@ -113,6 +114,36 @@ def latest_session(project: Project):
 @app.get("/v1/sessions/{sid}")
 def session_get(sid: str, project: Project):
     return store.public(store.get(sid, project, kind="session"))
+
+
+@app.post("/v1/sessions/{sid}/start", status_code=202)
+def session_start(sid: str, project: Project):
+    """Let the assistant read registered project context and lead the first turn."""
+    with store.connection() as conn:
+        row = store.get(sid, project, conn, True, kind="session")
+        data = row["data"]
+        if data["messages"]:
+            raise HTTPException(409, "이미 시작된 대화입니다.")
+        if data.get("active_chat"):
+            active = store.get(data["active_chat"], project, conn, kind="chat")
+            if active["data"]["status"] in ("queued", "running"):
+                return store.public(active)
+        rid = store.create(
+            project,
+            "chat",
+            {
+                "status": "queued",
+                "mode": "initial",
+                "session_id": sid,
+                "source_revision": row["revision"] + 1,
+                "reply": "",
+            },
+            conn,
+        )
+        data.update(active_chat=rid, review=None, confirmed_revision=None)
+        store.save(sid, data, conn, row["revision"] + 1)
+    kick(rid)
+    return store.public(store.get(rid, project, kind="chat"))
 
 
 @app.post("/v1/sessions/{sid}/messages", status_code=202)
@@ -343,7 +374,7 @@ def export_run(rid: str, body: ExportRequest, project: Project):
             status="succeeded",
             schema_version=1,
             images=output,
-            information=document.get("information", {}),
+            information=output_information(document.get("information", {})),
             fixed_content={"crowdfunding_notice_key": "fundit.crowdfunding-notice.pending-v1"},
             project_summary={
                 "summary": document.get("summary", ""),

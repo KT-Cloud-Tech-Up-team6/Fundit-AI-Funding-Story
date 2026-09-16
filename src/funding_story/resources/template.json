@@ -89,7 +89,10 @@
             "letterSpacing": -4.5,
             "align": "center",
             "fill": "#FFFFFF",
-            "fidelity": "observed"
+            "fidelity": "observed",
+            "copyFit": {
+              "lines": 2
+            }
           },
           {
             "id": "hero.caption",
@@ -171,7 +174,10 @@
             "letterSpacing": -1.6,
             "align": "center",
             "fill": "#FFFFFF",
-            "fidelity": "estimated"
+            "fidelity": "estimated",
+            "copyFit": {
+              "maxLines": 2
+            }
           },
           {
             "id": "hero.point-1",
@@ -206,7 +212,10 @@
             "letterSpacing": -1.6,
             "align": "center",
             "fill": "#FFFFFF",
-            "fidelity": "estimated"
+            "fidelity": "estimated",
+            "copyFit": {
+              "maxLines": 2
+            }
           },
           {
             "id": "hero.point-2",
@@ -241,7 +250,10 @@
             "letterSpacing": -1.6,
             "align": "center",
             "fill": "#FFFFFF",
-            "fidelity": "estimated"
+            "fidelity": "estimated",
+            "copyFit": {
+              "maxLines": 2
+            }
           }
         ]
       },
@@ -1855,7 +1867,10 @@
             "align": "left",
             "wrap": "none",
             "fill": "brand",
-            "fidelity": "derived"
+            "fidelity": "derived",
+            "copyFit": {
+              "lines": 1
+            }
           },
           {
             "id": "promise.title-tail",
@@ -1872,7 +1887,10 @@
             "letterSpacing": -3.046,
             "align": "left",
             "fill": "#FFFFFF",
-            "fidelity": "derived"
+            "fidelity": "derived",
+            "copyFit": {
+              "lines": 1
+            }
           },
           {
             "id": "promise.image",
@@ -1914,7 +1932,10 @@
             "align": "center",
             "verticalAlign": "middle",
             "fill": "#FFFFFF",
-            "fidelity": "estimated"
+            "fidelity": "estimated",
+            "copyFit": {
+              "lines": 2
+            }
           },
           {
             "id": "promise.circle-1",
@@ -1942,7 +1963,10 @@
             "align": "center",
             "verticalAlign": "middle",
             "fill": "#FFFFFF",
-            "fidelity": "estimated"
+            "fidelity": "estimated",
+            "copyFit": {
+              "lines": 2
+            }
           },
           {
             "id": "promise.circle-2",
@@ -1970,7 +1994,22 @@
             "align": "center",
             "verticalAlign": "middle",
             "fill": "#FFFFFF",
-            "fidelity": "estimated"
+            "fidelity": "estimated",
+            "copyFit": {
+              "lines": 2
+            }
+          }
+        ],
+        "textFlows": [
+          {
+            "nodes": [
+              "promise.title-emphasis",
+              "promise.title-tail"
+            ],
+            "x": 88,
+            "y": 280,
+            "width": 684,
+            "gap": 4
           }
         ]
       },
@@ -2744,7 +2783,10 @@
             "letterSpacing": -3.512,
             "align": "center",
             "fill": "#FFFFFF",
-            "fidelity": "derived"
+            "fidelity": "derived",
+            "copyFit": {
+              "lines": 2
+            }
           },
           {
             "id": "rewards.card-0",
@@ -3731,5 +3773,32 @@
     "information.return-body": "강점이 사용자에게 주는 구체적인 의미와 사용 상황 설명",
     "information.warning-heading": "블록 목적에 맞는 짧은 문구. 등록 사실·사용자 의도에 근거해 작성",
     "information.warning-body": "강점이 사용자에게 주는 구체적인 의미와 사용 상황 설명"
+  },
+  "composition": {
+    "version": 1,
+    "required_before_points": [
+      "hero",
+      "problem",
+      "transition",
+      "product-visual",
+      "positioning",
+      "product-gallery",
+      "comparison",
+      "promise"
+    ],
+    "point_templates": [
+      "feature-wireless",
+      "feature-slim",
+      "feature-handling",
+      "feature-dustbin",
+      "feature-ergonomic",
+      "feature-brush"
+    ],
+    "point_min": 3,
+    "point_max": 12,
+    "required_after_points": [
+      "rewards"
+    ],
+    "optional_information": "information"
   }
 }

@@ -2,6 +2,10 @@
 .env
 .venv
 data
+output
 .pytest_cache
 .ruff_cache
 __pycache__
+scripts/local
+.playwright-cli
+.env.*

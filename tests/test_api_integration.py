@@ -91,6 +91,22 @@ def test_intake_can_begin_without_description_or_images_and_resume(client):
     )
 
 
+def test_session_start_queues_assistant_led_first_turn_once(client):
+    x = json.loads(Path("tests/fixtures/appliance.json").read_text())
+    created = client.post("/v1/sessions", json=x).json()
+
+    first = client.post(f"/v1/sessions/{created['id']}/start")
+    second = client.post(f"/v1/sessions/{created['id']}/start")
+
+    assert first.status_code == 202
+    assert first.json()["mode"] == "initial"
+    assert second.status_code == 202 and second.json()["id"] == first.json()["id"]
+    session = client.get(f"/v1/sessions/{created['id']}").json()
+    assert session["revision"] == 2
+    assert session["messages"] == []
+    assert session["active_chat"] == first.json()["id"]
+
+
 def test_chat_rejects_foreign_asset_without_changing_session(client):
     sid = client.post("/v1/sessions", json={"title": "LUMI S1"}).json()["id"]
     foreign = store.create(str(uuid4()), "asset", {"mime": "image/png"})
@@ -133,6 +149,20 @@ def test_export_returns_png_text_manifest_and_commit_clears_temporary_design(cli
                         "focalX": 0.5,
                         "focalY": 0.5,
                         "desc": "제품",
+                    },
+                    {
+                        "id": "hero.pending-image",
+                        "kind": "image",
+                        "x": 20,
+                        "y": 20,
+                        "width": 80,
+                        "height": 80,
+                        "assetId": "",
+                        "pending": True,
+                        "fit": "cover",
+                        "focalX": 0.5,
+                        "focalY": 0.5,
+                        "desc": "사용자가 편집할 빈 이미지 슬롯",
                     },
                     {
                         "id": "hero.title",

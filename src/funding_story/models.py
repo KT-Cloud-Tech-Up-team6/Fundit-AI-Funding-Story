@@ -49,7 +49,6 @@ class InputChange(StrictModel):
         "team",
         "policy",
         "risks",
-        "gift_details",
     ]
     reward_index: int | None = None
     value: str = Field(min_length=1, max_length=12000)
@@ -57,6 +56,8 @@ class InputChange(StrictModel):
 
 
 class Review(StrictModel):
+    include_information: bool = False
+    information_reason: str = ""
     input_changes: list[InputChange] = Field(default_factory=list, max_length=20)
     reply: str = Field(min_length=1)
     strengths: list[Strength] = Field(default_factory=list, max_length=12)
@@ -144,3 +145,8 @@ class CopyResult(StrictModel):
     image_prompts: dict[str, str]
     summary: str
     storyline: str
+
+
+def output_information(information: dict[str, str]) -> dict[str, str]:
+    """Gift details belong to platform registration, not generated story sections."""
+    return {key: value for key, value in information.items() if key != "gift_details"}

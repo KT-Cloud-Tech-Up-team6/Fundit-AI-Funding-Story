@@ -41,3 +41,11 @@ def parse_review(raw, source: ProjectInput, message: str) -> Review:
     review = Review.model_validate(raw)
     apply_changes(source, review, message)
     return review
+
+
+def parse_initial_review(raw) -> Review:
+    """Validate the assistant-led first turn without treating registered data as a user edit."""
+    review = Review.model_validate(raw)
+    if review.input_changes:
+        raise ValueError("첫 안내에서는 등록 정보를 수정하지 말고 추가 정보만 질문하세요.")
+    return review

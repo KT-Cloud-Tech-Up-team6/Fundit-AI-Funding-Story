@@ -4,7 +4,13 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 data/
+output/
+.playwright-cli/
 *.egg-info/
 dist/
 
 celerybeat-schedule*
+scripts/local/
+.DS_Store
+.env.*
+!.env.example

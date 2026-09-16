@@ -54,6 +54,7 @@ def test_pipeline_retries_only_failed_images_and_restores_other_blocks(monkeypat
     tasks.generate(store.get(rid))
     final = store.get(rid)["data"]
     assert final["status"] == "succeeded"
+    assert "gift_details" not in final["document"]["information"]
     assert calls.count("hero.image") == 2
     assert all(calls.count(k) == 1 for k in successful)
     assert all(final["image_jobs"][k]["asset_id"] == v for k, v in successful.items())

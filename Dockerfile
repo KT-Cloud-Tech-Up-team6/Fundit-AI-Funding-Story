@@ -10,6 +10,8 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
 RUN uv sync --frozen --no-dev
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN uv run playwright install --with-deps chromium && chmod -R a+rX /opt/playwright
 RUN useradd --create-home app && mkdir -p /app/data && chown -R app:app /app/data
 USER app
 EXPOSE 8000

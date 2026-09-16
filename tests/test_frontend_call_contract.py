@@ -123,7 +123,8 @@ def test_frontend_request_sequence_reaches_png_and_text_result(frontend_client, 
     assert exported.status_code == 201
     result = exported.json()
     assert result["status"] == "succeeded" and len(result["images"]) == len(scene["blocks"])
-    assert result["information"] == fixture["information"]
+    assert result["information"] == {k: v for k, v in fixture["information"].items() if k != "gift_details"}
+    assert "gift_details" not in result["information"]
     assert result["fixed_content"]["crowdfunding_notice_key"].startswith("fundit.")
     committed = frontend_client.post(
         f"/v1/exports/{result['id']}/commit", json={"document_revision": 1}
@@ -131,3 +132,26 @@ def test_frontend_request_sequence_reaches_png_and_text_result(frontend_client, 
     assert committed.status_code == 200 and committed.json()["cleanup_pending"] is False
     assert frontend_client.get("/v1/assets/" + temporary_asset).status_code == 404
     assert frontend_client.get("/v1/assets/" + result["images"][0]["asset_id"]).status_code == 200
+
+
+def test_first_turn_uses_registered_context_before_user_message(frontend_client, monkeypatch):
+    fixture = json.loads(Path("tests/fixtures/appliance.json").read_text())
+    created = frontend_client.post("/v1/sessions", json=fixture).json()
+    accepted = frontend_client.post(f"/v1/sessions/{created['id']}/start")
+    assert accepted.status_code == 202
+
+    review = Review(
+        reply=(
+            f"등록하신 ‘{fixture['title']}’ 정보와 선물 구성을 확인했어요. "
+            "이 제품을 만들게 된 계기와 가장 먼저 보여주고 싶은 사용 장면을 알려주세요."
+        ),
+        missing=["제작 계기", "강조할 사용 장면"],
+    )
+    monkeypatch.setattr(tasks, "generate_checked", lambda *args, **kwargs: review)
+    tasks.chat(store.get(accepted.json()["id"]))
+
+    session = frontend_client.get(f"/v1/sessions/{created['id']}").json()
+    assert session["input"] == created["input"]
+    assert session["messages"] == [{"role": "assistant", "text": review.reply}]
+    assert session["review"]["missing"] == ["제작 계기", "강조할 사용 장면"]
+    assert session["active_chat"] is None

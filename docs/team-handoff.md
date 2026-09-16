@@ -9,7 +9,7 @@
 - 출력: 블록별 PNG 자산 매니페스트, 프로젝트 예산~신뢰와 안전 입력 텍스트, 공통 안내 key, 후속 AI용 summary/storyline.
 - 안정성: 프로젝트 범위, revision, message/idempotency key, 공급자/형식 재시도 분리, 성공 이미지 재사용.
 - 수명주기: BE 저장 성공 전 임시 후보 보존, commit 후 scene·snapshot·중간 생성 이미지·run checkpoint 정리.
-- 검증: 30개 자동 테스트, 로컬 HTTP health/auth/OpenAPI, 패키지 빌드. Docker 레지스트리 시간 초과와 원격 CI는 미검증.
+- 검증: 37개 자동 테스트, 로컬 HTTP health/auth/OpenAPI, 패키지 빌드. Docker 레지스트리 시간 초과와 원격 CI는 미검증.
 
 ## 프론트엔드팀
 
@@ -46,13 +46,13 @@ Polotno, 요소 이동·크기·블록 높이 편집은 초기 연결의 필수 
 - 이미지 슬롯 실패·`input_required`, 전체 재생성, 뒤로 가기, 저장 실패 상태의 문구와 동작을 확정한다.
 - 공통 크라우드 펀딩 안내 문안과 key 버전을 확정한다. 현재 `pending-v1`은 운영 문안이 아니다.
 - 프로젝트 소개/선물 PNG와 하단 정보 텍스트가 같은 폭으로 이어지는 최종 읽기 화면을 검토한다.
-- 선물 1~2종에서 3카드 템플릿의 남는 슬롯을 어떻게 처리할지 확정한다.
+- 선물 1~2종에서는 3카드 디자인을 유지하고 미등록 칸을 표시한다. 현재 제한된 편집 범위에서의 사용 안내를 확인한다.
 
 ## 인프라·보안팀
 
 - API·Celery worker·PostgreSQL·broker 배치, worker 동시성과 timeout을 확정한다.
 - 프로젝트 입력/생성/최종 PNG의 S3 prefix·권한·보존 기간과 CDN 조회 방식을 제공한다.
-- Pretendard 파일 공급 또는 Docker build의 외부 CDN 접근 정책을 결정한다.
+- Chromium 실행 리소스와 Pretendard 파일 공급·Docker build의 외부 다운로드 접근 정책을 결정한다.
 - AI service token, Gateway 내부 인증, egress, Google ADC와 Secret 주입을 연결한다.
 - LangSmith의 입력·출력 수집 범위·마스킹·보존·접근 권한을 검토한다.
 
@@ -64,4 +64,4 @@ Polotno, 요소 이동·크기·블록 높이 편집은 초기 연결의 필수 
 4. 신규 프로젝트 등록부터 저장·재조회까지 E2E를 수행한다.
 5. 디자인·기획이 실제 화면과 고정 문안을 승인한 뒤 운영 환경 검증으로 이동한다.
 
-GitHub 신규 저장소 `Fundit-AI-Funding-Story`는 아직 조직에 존재하지 않는다. 조직에서 빈 저장소를 만든 뒤 현재 로컬 초기 커밋을 push해야 한다.
+대상 저장소 이름은 `Fundit-AI-Funding-Story`다. 현재 로컬 저장소에는 remote가 설정되지 않았다. 원격 저장소 생성·push·PR 및 팀 메시지 전송은 이번 업로드 준비에 포함하지 않는다.

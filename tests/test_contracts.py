@@ -72,6 +72,12 @@ def test_template_preserved_and_price_bound():
     assert [b["id"] for b in scene["blocks"]] == [
         "hero",
         "problem",
+        "transition",
+        "product-visual",
+        "positioning",
+        "product-gallery",
+        "comparison",
+        "promise",
         "benefit-1",
         "benefit-2",
         "benefit-3",
@@ -140,3 +146,29 @@ def test_stream_retry_before_first_token_only():
     assert next(it) == "partial"
     with pytest.raises(Busy):
         next(it)
+
+
+def test_information_is_optional_without_removing_required_blocks():
+    x = ProjectInput.model_validate(json.loads(Path("tests/fixtures/appliance.json").read_text()))
+    x.asset_ids = ["reference"]
+    selected = review()
+    base, _ = plan(x, selected)
+    selected.include_information = True
+    selected.information_reason = "추가 제품 안내 확인"
+    full, _ = plan(x, selected)
+    assert [b["id"] for b in full["blocks"]] == [b["id"] for b in base["blocks"]] + ["information"]
+    assert full["blocks"][:-1] == base["blocks"]
+    assert all(n["pending"] for b in full["blocks"] for n in b["nodes"] if n["kind"] == "image")
+
+
+def test_point_count_does_not_change_required_order():
+    from funding_story.models import Strength
+    x = ProjectInput.model_validate(json.loads(Path("tests/fixtures/appliance.json").read_text()))
+    x.asset_ids = ["reference"]
+    selected = review()
+    selected.strengths.append(Strength(id="extra", title="헤드", description="브러시"))
+    scene, _ = plan(x, selected)
+    points = [b for b in scene["blocks"] if b["id"].startswith("benefit-")]
+    assert len(points) == 4
+    assert points[-1]["templateBlockId"] == "feature-brush"
+    assert scene["blocks"][-1]["id"] == "rewards"

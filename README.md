@@ -1,64 +1,140 @@
-# Fundit AI Funding Story
+<p align="center">
+  <img src="assets/readme/hero-en.svg" alt="Funding Story AI — product conversations to PNG blocks and project text" width="100%">
+</p>
 
-제품 정보·이미지·대화를 바탕으로 제품의 핵심 강점을 정리하고, 확인된 내용을 디자인 템플릿의 텍스트·이미지 슬롯에 채우는 AI 서비스입니다. 생성 중에는 임시 scene을 사용하고, 최종 API 결과는 블록별 PNG 자산 매니페스트와 편집 가능한 프로젝트 정보 텍스트입니다.
+<p align="center">
+  <a href="https://www.python.org/"><img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-0F766E?style=flat-square"></a>
+  <a href="https://docs.astral.sh/uv/"><img alt="uv" src="https://img.shields.io/badge/managed%20with-uv-2DD4BF?style=flat-square"></a>
+  <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/API-FastAPI-009688?style=flat-square"></a>
+  <a href="https://github.com/langchain-ai/langgraph"><img alt="LangGraph" src="https://img.shields.io/badge/orchestration-LangGraph-0F172A?style=flat-square"></a>
+</p>
+<p align="center">English | <a href="i18n/README-KR.md">한국어</a></p>
+<p align="center">Collect product details through conversation,<br>then generate crowdfunding page images and supporting text.</p>
 
-## 구성
+---
 
-- Python 3.12.14 / uv / FastAPI
-- LangGraph 1.2.11: 블록 선택 → 문구 생성 → 슬롯별 이미지 생성 → 임시 디자인 조립. PostgreSQL checkpoint로 이어서 실행
-- Celery + Redis: 비동기 실행과 전달. Redis에는 문서나 최종 결과를 저장하지 않음
-- PostgreSQL: 입력 세션·확인 버전·실행 상태·자산 메타데이터·체크포인트
-- Google GenAI 공식 SDK / LangSmith 선택적 추적
-- Pillow 기반 서버 PNG export. Pretendard 1.3.9 파일을 checksum으로 고정한 Docker 이미지
-- FE·BE 저장소는 호출 계약 확인에만 사용하며 이번 범위에서는 수정하지 않음
+Funding Story AI is Fundit's internal AI API. It reads registered product information, asks for missing details, and presents a summary and product strengths for user confirmation. An asynchronous generation job fills a design template with copy and images. The final output is ordered PNG assets and project information text.
 
-## 로컬 실행
+This repository contains the AI service, worker, template resources, tests, and integration contracts. Frontend screens, project ownership, permanent project content, and publishing belong to the frontend/backend services.
 
-```sh
+[Features](#what-does-funding-story-ai-do) · [Quick Start](#-quick-start) · [Architecture](#-architecture) · [Output](#what-you-get) · [Documentation](#learn-more)
+
+## What does Funding Story AI do?
+
+### Conversational intake
+
+- Starts from registered product facts, rewards, and reference images.
+- Streams conversational replies through SSE and asks for missing context.
+- Lets users revise, reorder, or remove product strengths through conversation.
+- Requires confirmation of the current input revision before generation.
+- Preserves supplied prices, units, specifications, and conditions; missing facts are not invented.
+
+### Template-based generation
+
+- Includes nine required appliance-template blocks in a fixed order.
+- Selects Point layouts for confirmed strengths and optionally includes an Information block.
+- Generates copy and images for declared slots, with failed slots available for retry.
+- Measures copy with Konva; slot-format failures feed into the existing bounded LangGraph retry.
+- Uses no additional model-based factuality judge or automatic factual correction pass.
+
+### PNG and text export
+
+- Renders PNGs with server-side Chromium, Konva 10.5.0, and Pretendard.
+- Keeps template font sizes; linked text follows explicit layout rules.
+- Returns budget, schedule, team, policy, and risks separately as text. Gift detail descriptions are excluded.
+- Clears temporary design data after the backend confirms permanent content storage.
+- Does not offer design re-editing of saved PNGs or a frontend editor in this repository.
+
+## 🚀 Quick Start
+
+### 1. Install
+
+Requires Python 3.12.14, [uv](https://docs.astral.sh/uv/), Docker Compose, and Google Cloud credentials for live model calls. Run from this repository's root:
+
+```bash
 uv sync --frozen
 cp .env.example .env
-# .env의 Google Cloud 프로젝트와 ADC, 서비스 토큰을 설정
-# 실제 모델 호출은 비용이 발생합니다.
-docker compose up -d
-uv run python -m funding_story.store
-uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
+uv run playwright install chromium
+uv run python scripts/install_font.py
 ```
 
-별도 터미널에서 워커와 미전달 작업 복구 스케줄러를 실행합니다.
+On Linux, use `uv run playwright install --with-deps chromium`. The font installer verifies the pinned checksum; font files stay under ignored `data/`.
 
-```sh
+### 2. Configure and start dependencies
+
+Set `GOOGLE_CLOUD_PROJECT` and an internal `AI_SERVICE_TOKEN` in `.env`. For local Google credentials, use `gcloud auth application-default login` if ADC is not already configured. Live model calls incur provider charges.
+
+```bash
+docker compose up -d
+uv run python -m funding_story.store
+```
+
+The compose file starts local PostgreSQL and Redis only. Full settings are in [`.env.example`](.env.example).
+
+### 3. Start API, worker, and scheduler
+
+Run each command in a separate terminal:
+
+```bash
+uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
 uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO
 uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
 ```
 
-API 실행 전에 DB 초기화 명령을 한 번 실행하세요. 워커는 API와 동일한 환경 변수·DB·파일 저장소를 사용해야 합니다. `--pool=solo`는 macOS 내부 검증용입니다. 운영 워커 수·리소스·보존 기간은 인프라 협의 대상입니다.
+`solo` is the macOS development worker configuration. API and worker must share configuration and storage. Local API docs: [Swagger UI](http://127.0.0.1:58001/docs). Detailed setup and Docker usage: [Development guide](docs/development.md).
 
-```sh
-uv run pytest -q
-uv run ruff check src tests
+### 4. Connect a caller
+
+Calls follow **FE → BE → AI**. The backend verifies ownership and sends `Authorization: Bearer <internal-token>` plus `X-Project-Id`. Do not expose this token to the browser.
+
+The call sequence is upload → session → start/chat → confirm revision → run → poll/retry → export → backend save → export commit. See [API contracts](docs/architecture.md), [OpenAPI](docs/openapi.json), and [frontend mapping](docs/frontend-call-contract.md).
+
+## 🏗 Architecture
+
+```mermaid
+flowchart LR
+    FE[Frontend] --> BE[Backend / ownership]
+    BE --> API[FastAPI]
+    API --> DB[(PostgreSQL)]
+    API --> Q[(Redis broker)]
+    Q --> W[Celery / LangGraph]
+    W --> M[Google GenAI]
+    W --> DB
+    W --> S[(Asset storage)]
+    API --> K[Chromium / Konva]
+    K --> S
+    API --> R[PNG manifest + text]
+    R --> BE
 ```
 
-테스트는 워커 DB와 분리된 `funding_ai_test` PostgreSQL을 사용합니다. 새 Compose 볼륨은 이를 자동 생성합니다. 기존 볼륨은 테스트 DB를 별도로 생성하거나 `TEST_DATABASE_URL`로 전용 테스트 DB를 지정하세요. 모델 호출은 테스트에서 대체하며, 테스트 프로젝트 작업은 자동 실행 대상에서 제외합니다. 실제 모델 검증은 별도 기록합니다.
+Python 3.12 / uv / FastAPI / LangGraph / Celery / PostgreSQL / Redis / Google GenAI SDK / optional LangSmith tracing. Redis transports jobs; PostgreSQL stores durable state and checkpoints. Asset storage supports local files or S3. Package versions are locked in `uv.lock`.
 
-## 계약과 책임
+## What you get
 
-- FE → BE → AI. AI는 내부 Bearer 토큰과 프로젝트 범위를 요구하며, BE가 사용자·프로젝트 소유권을 확인합니다.
-- 사용자 확인 전 생성할 수 없습니다. 수정 후에는 새 입력 버전을 확인해야 합니다.
-- 동일 메시지 ID / 생성 idempotency key는 중복 작업을 만들지 않습니다.
-- 공급자 429·5xx는 15초/30초 대기 후 재시도합니다. JSON 계약 오류는 LangGraph가 오류 내용을 전달해 최대 두 번 추가 생성합니다.
-- LLM 결과의 사실·표현 품질을 판정하는 추가 모델 호출이나 자동 교정은 없습니다.
-- 실패한 이미지 슬롯은 명시적으로 부분 완료 상태에 남습니다. 재시도는 성공한 이미지를 재사용합니다.
-- 후보 scene은 AI가 임시 보관합니다. 문구 수정값을 `/v1/runs/{id}/exports`에 전달하면 블록별 PNG와 하단 텍스트를 반환합니다.
-- BE가 최종 본문을 저장한 뒤 `/v1/exports/{id}/commit`으로 저장 revision을 확인해야 임시 scene·입력 snapshot·실행 checkpoint를 정리합니다.
-- 저장된 PNG의 디자인 재편집과 부분 블록 재생성 API는 제공하지 않습니다. 하단 일반 텍스트 편집은 FE/BE 본문 책임입니다.
-- 정상가를 입력하지 않으면 만들지 않습니다. 선물 카드는 3종 디자인을 유지하고 미입력 카드는 사용자가 편집합니다.
+- Ordered PNG asset IDs with block IDs, dimensions, and alternative text.
+- Project information text and a fixed crowdfunding-notice key.
+- `project_summary.summary` and `storyline` for downstream use.
+- Export ID and source revision for backend storage confirmation.
 
-## 저장소 안내
+See the [example response](docs/examples/export-result.json). Supplied reward prices remain unchanged. Unregistered cards in the fixed three-card reward design remain `input_required`; they are not fabricated.
 
-`src/funding_story/resources/template.json`은 검토한 생활가전 템플릿을 이식한 것입니다. 생성 시 위치·크기·폰트 등 디자인 요소를 임의 변경하지 않습니다. `tests/fixtures`는 실제 판매 정보가 아닌 내부 검증 자료입니다.
+## Validation and scope
 
-운영 S3 버킷·권한, Gateway 인증 연결, LangSmith API 키, 게시 정책은 배포 전에 관련 팀과 연결·검증해야 합니다. 로컬 개발용 토큰·DB 암호를 운영에 사용하지 마세요. 로컬 PNG export는 `PRETENDARD_FONT_PATH`에 Pretendard variable TTF의 절대 경로가 필요하며 Docker 이미지는 고정 버전을 설치합니다.
+```bash
+uv run ruff check src tests scripts
+uv run pytest -q
+uv build
+```
 
-Dockerfile은 API 이미지용입니다. 워커는 같은 이미지에서 `/app/.venv/bin/celery -A funding_story.tasks worker`로 실행합니다. DB 초기화는 별도 초기화 작업으로 실행하고, 여러 API 인스턴스가 동시에 DDL을 수행하지 않도록 합니다. 운영 포트 공개·인증·파일 볼륨·S3 설정은 이 Dockerfile만으로 완성되지 않습니다. CI 설정은 로컬에서 작성했으며 GitHub에서 실행하지 않았습니다.
+Tests use a separate PostgreSQL database and mocked model calls; rendering tests run real Chromium. The [synthetic fixture](tests/fixtures/appliance.json) and [reference image](tests/fixtures/original.png) are test material, not commercial product claims.
 
-API와 팀별 연결 항목은 [실행 계약](docs/architecture.md), 기존 FE 화면과의 대응은 [프론트 호출 계약](docs/frontend-call-contract.md), 실제 검증 범위는 [검증 기록](docs/validation.md)에서 확인합니다.
+Local validation includes 37 tests and an actual 14-block generation/export case. Generated product details can still differ from reference images. Remote CI, production deployment, and cross-team publishing integration are not claimed complete. See [validation scope](docs/validation.md).
+
+## Learn more
+
+- [API and execution contracts](docs/architecture.md)
+- [Development and configuration](docs/development.md)
+- [Frontend call mapping](docs/frontend-call-contract.md)
+- [Team handoff](docs/team-handoff.md)
+- [Upload preparation](docs/release-checklist.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
