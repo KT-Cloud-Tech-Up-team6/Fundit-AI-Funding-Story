@@ -1,6 +1,6 @@
 # Funding Story AI 실행·API 계약
 
-기준: 2026-09-16, API 0.2.0. 이번 저장소는 LangGraph·AI API와 호출 계약을 소유한다. FE 화면·디자인·Tiptap·Polotno 및 BE 프로젝트 본문 저장 코드는 수정 범위가 아니다.
+기준: 2026-09-16, API 0.2.0. 이 저장소는 LangGraph·AI API와 호출 계약을 소유한다. FE 화면·디자인·Tiptap·Polotno 및 BE 프로젝트 본문 저장 코드는 범위에 포함하지 않는다.
 
 ## 책임 경계
 
@@ -108,31 +108,29 @@ Redis는 Celery 전달용이며 결과 원본이 아니다. PostgreSQL이 세션
 - 디자인·기획: 결과 모달 문구 수정 UI, `input_required`, 실패/재시도, 공통 크라우드 펀딩 안내 문안 확정.
 - 인프라·보안: Gateway, S3 권한, API/worker 배포, 보존 기간, LangSmith 전송 범위 확인.
 
-## 템플릿 구성 계약 — 2026-09-16 정정
+## 템플릿 구성 계약
 
 `resources/template.json`의 `composition`이 포함 여부와 순서를 소유한다.
 필수 순서는 hero → problem → transition → product-visual → positioning → product-gallery → comparison → promise → Point → rewards다.
-기존 Python planner의 hero/problem/Point/rewards 축약을 제거했다.
 
-- Point: 확인된 강점당 1개. 기존 확인 계약인 3~12개를 유지하며 전부 생략할 수 없다. 각 블록에 strengthId를 연결한다.
+- Point: 확인된 강점당 1개. 3~12개를 유지하며 전부 생략할 수 없다. 각 블록에 strengthId를 연결한다.
 - Information: Review.include_information 기본 false. LLM은 입력에 있는 추가 제품 안내가 Point와 중복되지 않고 슬롯을 추정 없이 채울 수 있을 때만 선택하며 information_reason에 근거를 남긴다.
 - Information은 하단 예산·일정·팀·신뢰와 안전 텍스트와 별개다. 하단 정보만 있다고 포함하지 않는다.
 - 필수 내용이 부족하면 대화의 missing과 reply에서 보완을 요청한다. 가격·성능·비교 근거를 만들거나 필수 블록을 삭제해서 해결하지 않는다.
-- 포함된 모든 블록의 텍스트·이미지 슬롯은 기존 계약으로 빠짐없이 작성한다. 디자인 좌표와 순서는 LLM 출력 대상이 아니다.
-- 기존 저장 결과와 완료 작업은 소급 변경하지 않는다. 새로운 대화 검토·생성부터 적용한다.
+- 포함된 모든 블록의 텍스트·이미지 슬롯은 빠짐없이 작성한다. 디자인 좌표와 순서는 LLM 출력 대상이 아니다.
 
 구조 회귀 테스트와 실제 14블록 생성·PNG 출력 사례를 확인했다. 완료 범위와 남은 한계는 [검증 기록](validation.md)을 따른다.
 
-### Konva 텍스트 배치와 출력 기준 (2026-09-16 정정)
+### Konva 텍스트 배치와 출력 기준
 
-PNG export는 Pillow 재구현을 제거하고 서버의 Playwright Chromium + Konva 10.5.0 + Pretendard로 수행한다. 기존 참조 렌더러의 text/shape/image 속성을 같은 방식으로 전달한다. LLM이 폰트 크기·도형 크기를 바꾸지 않으며, 짧은 텍스트를 채우기 위해 확대하지 않는다. 실행 시 외부 CDN을 호출하지 않는다. 고정 Konva 파일과 라이선스는 resources/vendor에 포함한다.
+PNG export는 서버의 Playwright Chromium + Konva 10.5.0 + Pretendard로 수행한다. 템플릿 scene의 text/shape/image 속성을 그대로 전달한다. LLM이 폰트 크기·도형 크기를 바꾸지 않으며, 짧은 텍스트를 채우기 위해 확대하지 않는다. 실행 시 외부 CDN을 호출하지 않는다. 고정 Konva 파일과 라이선스는 `resources/vendor`에 포함한다.
 
 - 템플릿 `textFlows`: promise의 강조 문구와 후속 문구는 같은 줄의 묶음이다. 시작점·최대폭은 고정하고 강조 텍스트의 실제 Konva 너비 + 4px에 후속 문구를 배치한다. 다른 노드는 이동하지 않는다.
 - `copyFit`: hero/rewards 제목 및 promise 원 안 문구는 2줄, 연결 제목 각 조각은 1줄, hero detail은 최대 2줄. requirements에 명시하고 실제 Konva 줄바꿈으로 확인한다.
-- 기존 LangGraph 출력 형식 검사에서 폭·높이·명시 줄 수를 측정한다. 실패하면 해당 슬롯과 실제/허용 값을 기존 재시도에 전달한다. 별도 사실 판정 LLM 또는 생성 후 자동 교정 단계를 추가하지 않는다. 숫자·단위 축약으로 맞추지 않는다.
-- 출력은 여전히 PNG+일반 텍스트 API다. FE 변경이나 Konva 에디터 도입은 없다. `textLayoutVersion: 1`로 신규 scene에 반영한다. 과거 임시 scene을 자동으로 새 템플릿에 덮어쓰지 않으며 이번 검토용 run만 명시적으로 백업 후 갱신했다.
-- Chromium 설치가 필요하다: 로컬 `uv run playwright install chromium`, Linux `uv run playwright install --with-deps chromium`. Dockerfile에 설치를 포함했으나 이번 Docker 이미지 빌드 자체를 검증한 것은 아니다. 브라우저는 export당 1개이며 모든 블록을 출력 후 닫는다. 운영 동시성·메모리 부하 측정은 별도다.
+- LangGraph 출력 형식 검사에서 폭·높이·명시 줄 수를 측정한다. 실패하면 해당 슬롯과 실제/허용 값을 재시도에 전달한다. 별도 사실 판정 LLM 또는 생성 후 자동 교정 단계는 두지 않는다. 숫자·단위 축약으로 맞추지 않는다.
+- 출력은 PNG+일반 텍스트 API다. FE 변경이나 Konva 에디터 도입은 범위에 포함하지 않는다. `textLayoutVersion: 1`을 scene에 기록한다.
+- Chromium 설치가 필요하다: 로컬 `uv run playwright install chromium`, Linux `uv run playwright install --with-deps chromium`. Dockerfile에도 설치 단계를 포함한다. 브라우저는 export당 1개이며 모든 블록을 출력 후 닫는다. 운영 동시성·메모리 부하 측정은 별도다.
 
 속성 기준: [Konva.Text 공식 문서](https://konvajs.org/api/Konva.Text.html), [Playwright 브라우저 설치](https://playwright.dev/python/docs/browsers).
 
-선물 상세 설명(`gift_details`)은 텍스트 생성·추가 수집·출력 대상에서 제외한다. 기존 입력에 해당 키가 남아 있어도 조립 및 export에서 제외한다. 리워드 디자인 블록은 유지한다.
+선물 상세 설명(`gift_details`)은 텍스트 생성·추가 수집·출력 대상에서 제외한다. 입력에 해당 키가 있어도 조립 및 export에서 제외한다. 리워드 디자인 블록은 유지한다.

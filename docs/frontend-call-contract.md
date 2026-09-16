@@ -1,6 +1,6 @@
 # 프론트엔드 호출 대응표
 
-이 문서는 2026-09-16 `Fundit-FE` main의 `ProjectStoryForm → StoryEditor → FundingStoryModal` 화면 구조와 디자인을 유지하면서 실제 AI API를 연결한 계약이다. 별도 AI 작성 화면은 사용하지 않으며, 기존 모달 내부의 목업 reducer와 timer만 API 어댑터로 교체한다.
+이 문서는 2026-09-16 `Fundit-FE` main의 `ProjectStoryForm → StoryEditor → FundingStoryModal` 화면 구조와 디자인을 유지하는 목표 호출 계약이다. AI 저장소는 FE 연결 완료를 보장하지 않는다. FE 연동 시 별도 AI 작성 화면을 추가하지 않고 모달 내부의 목업 reducer와 timer를 API 어댑터로 교체한다.
 
 | 기존 화면 동작 | AI API | FE가 보관할 값 | 상태·주의점 |
 |---|---|---|---|
@@ -17,11 +17,11 @@
 | 본문 저장 | BE 본문 저장 API | BE document revision | AI API가 저장 성공을 추정하지 않음 |
 | 저장 성공 알림 | `POST /exports/{id}/commit` | committed 상태 | 임시 디자인 정리, 동일 revision 재호출 안전 |
 
-## 기존 FE 내부에서 달라지는 호출 계약
+## FE 연동 시 적용할 호출 계약
 
-`FundingStoryModal`의 DOM·스타일·모달 전환은 유지한다. 서버가 질문과 요약을 결정하며 FE는 session revision, SSE 응답, run 상태를 표시한다. `onImport(body, html?)`의 두 번째 인자로 PNG 블록과 텍스트 섹션 HTML을 전달하고, `StoryEditor`는 이 값이 있으면 기존 Tiptap 본문에 불러온다.
+`FundingStoryModal`의 DOM·스타일·모달 전환은 유지한다. 서버가 질문과 요약을 결정하며 FE는 session revision, SSE 응답, run 상태를 표시한다. `onImport(body, html?)`의 두 번째 인자로 PNG 블록과 텍스트 섹션 HTML을 전달하고, `StoryEditor`는 이 값이 있으면 Tiptap 본문에 불러온다.
 
-FE의 `/api/funding-story` 프록시와 BE 중계 API는 세션 생성 → 메시지/SSE → 확인 → 생성/조회 → PNG+텍스트 export까지 연결한다. Tiptap 본문 저장·게시가 아직 비활성이므로 `commit`은 연결하지 않는다. 별도 런타임 화면이나 Konva 편집 화면을 Figma 화면 통합으로 취급하지 않는다.
+FE의 `/api/funding-story` 프록시와 BE 중계 API는 세션 생성 → 메시지/SSE → 확인 → 생성/조회 → PNG+텍스트 export 순서로 연결해야 한다. Tiptap 본문 저장 성공을 확인한 뒤에만 `commit`을 호출한다. 별도 런타임 화면이나 Konva 편집 화면은 이 계약에 포함하지 않는다.
 
 ## 권장 오류 표시
 

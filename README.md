@@ -136,5 +136,5 @@ Local validation includes 37 tests and an actual 14-block generation/export case
 - [Development and configuration](docs/development.md)
 - [Frontend call mapping](docs/frontend-call-contract.md)
 - [Team handoff](docs/team-handoff.md)
-- [Upload preparation](docs/release-checklist.md)
+- [Validation scope](docs/validation.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)

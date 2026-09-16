@@ -121,5 +121,4 @@ uv build
 - [프론트 호출 대응](../docs/frontend-call-contract.md)
 - [팀별 인계](../docs/team-handoff.md)
 - [검증 범위](../docs/validation.md)
-- [업로드 준비](../docs/release-checklist.md)
 - [외부 라이브러리 고지](../THIRD_PARTY_NOTICES.md)

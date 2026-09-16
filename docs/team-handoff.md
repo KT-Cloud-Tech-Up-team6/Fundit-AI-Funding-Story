@@ -1,6 +1,6 @@
 # Funding Story AI 팀별 인계 사항
 
-기준: AI API 0.2.0, 2026-09-16. 이 문서는 구현 완료 범위와 타팀 후속 작업을 분리한다. 조직 저장소 main에 업로드했으며, 실제 메시지 전송·PR·운영 배포는 아직 하지 않았다.
+기준: AI API 0.2.0, 2026-09-16. 이 문서는 AI팀 제공 범위와 타팀 후속 작업을 분리한다.
 
 ## 현재 AI팀 제공물
 
@@ -13,7 +13,7 @@
 
 ## 프론트엔드팀
 
-기존 `ProjectStoryForm → StoryEditor → FundingStoryModal` 디자인을 유지하고 목업 reducer/timer만 실제 controller로 교체한다. 구체적인 화면/API 매핑은 [프론트 호출 대응표](frontend-call-contract.md)를 따른다.
+`ProjectStoryForm → StoryEditor → FundingStoryModal` 디자인을 유지하고 목업 reducer/timer만 실제 controller로 교체한다. 구체적인 화면/API 매핑은 [프론트 호출 대응표](frontend-call-contract.md)를 따른다.
 
 필요 작업:
 
@@ -22,7 +22,7 @@
 3. 요약과 제품의 핵심 강점 수정·정렬·삭제를 채팅 요청으로 전달한다.
 4. 결과 모달의 문구 수정값을 node ID 기반 `text_overrides`로 export한다.
 5. `images` 순서대로 Tiptap에 넣고 `information`은 일반 편집 텍스트로 연결한다.
-6. 기존 `setContent` 전체 덮어쓰기 전에 적용 범위와 기존 본문 처리 UX를 확정한다.
+6. `setContent` 전체 덮어쓰기 전에 적용 범위와 작성 중인 본문 처리 UX를 확정한다.
 7. BE 저장 성공 뒤에만 export commit을 호출한다.
 
 Polotno, 요소 이동·크기·블록 높이 편집은 초기 연결의 필수 조건이 아니다.
@@ -31,14 +31,14 @@ Polotno, 요소 이동·크기·블록 높이 편집은 초기 연결의 필수 
 
 필요 작업:
 
-1. 기존 Gateway 인증과 프로젝트 소유권 확인 뒤 AI 내부 API를 중계한다.
+1. Gateway 인증과 프로젝트 소유권 확인 뒤 AI 내부 API를 중계한다.
 2. 등록 프로젝트·선물·승인된 자산 key를 AI 세션 입력으로 변환한다.
 3. PNG `asset_id`를 프로젝트 영구 자산으로 연결하고 Tiptap 본문/정보 텍스트를 하나의 revision으로 저장한다.
 4. 본문 저장 커밋 이후 AI export commit을 호출한다. 저장 실패·충돌 시 호출하지 않는다.
 5. commit 응답 유실 시 같은 `document_revision`으로 재시도한다.
 6. `fixed_content`의 공통 안내 key를 서비스 정책 콘텐츠로 해석한다.
 
-기존 로컬 BE 브랜치의 Konva JSON 저장·부분 재생성 코드는 최신 계약에 맞춘 별도 검토가 필요하다. 이번 AI 작업에서 해당 코드를 수정하지 않았다.
+BE에 Konva JSON 저장·부분 재생성 코드가 있다면 PNG+일반 텍스트 계약과 충돌하는지 검토한다.
 
 ## 기획·디자인팀
 
@@ -63,5 +63,3 @@ Polotno, 요소 이동·크기·블록 높이 편집은 초기 연결의 필수 
 3. 로컬 통합 환경에서 FE → BE → AI를 연결한다.
 4. 신규 프로젝트 등록부터 저장·재조회까지 E2E를 수행한다.
 5. 디자인·기획이 실제 화면과 고정 문안을 승인한 뒤 운영 환경 검증으로 이동한다.
-
-대상 저장소 이름은 `Fundit-AI-Funding-Story`다. 조직 공개 저장소를 생성해 origin을 연결하고 main에 push했다. PR·팀 메시지 전송은 수행하지 않았다.
