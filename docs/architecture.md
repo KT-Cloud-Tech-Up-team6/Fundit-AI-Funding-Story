@@ -98,6 +98,10 @@ POST /v1/exports/{export_id}/commit
 
 Redis는 Celery 전달용이며 결과 원본이 아니다. PostgreSQL이 세션·작업·idempotency·체크포인트의 기준이다. LangSmith는 선택적 분석 도구이며 복구 의존성이 아니다. 로그와 trace에는 서비스 토큰·서명 URL·이미지 바이트를 기록하지 않는다.
 
+DB schema 변경 주체는 Flyway 하나다. `ai_records`, `ai_requests`, LangGraph checkpoint table은 `db/migration`의 forward-only SQL로 관리하며 API·worker가 런타임에 DDL을 실행하지 않는다. API와 worker는 각각 제한된 psycopg runtime pool을 사용하고 LangGraph checkpoint는 별도 pool을 사용한다. `/health`는 process liveness, `/health/ready`는 DB 연결과 최신 Flyway version을 확인한다.
+
+SQL과 transaction 구현은 `infrastructure/persistence`의 Postgres adapter에 있고 domain에는 repository port만 둔다. session/chat/run/export와 worker 상태 전이는 framework 비의존 `application/service.py`가 담당한다. `bootstrap.py`가 application과 Postgres adapter·pool lifecycle을 조립하며 API·Celery·asset·graph 진입점은 infrastructure를 직접 import하지 않는다. AI DB는 project-service DB 계정이나 table을 요구하지 않는다.
+
 최종 파일 저장소와 보존 기간은 인프라팀이 확정한다. local backend는 검증용이다. 운영 S3에서는 BE가 프로젝트 자산을 검증하고 AI에는 승인된 key만 전달한다.
 
 ## 후속 타팀 작업
@@ -106,7 +110,7 @@ Redis는 Celery 전달용이며 결과 원본이 아니다. PostgreSQL이 세션
 - FE: export `images`와 `information`을 기존 Tiptap 본문 형식으로 불러오고 저장 성공 뒤 commit 호출.
 - BE: 위 API 중계, 프로젝트 자산 영구 연결, 본문 revision 저장과 commit 순서 보장.
 - 디자인·기획: 결과 모달 문구 수정 UI, `input_required`, 실패/재시도, 공통 크라우드 펀딩 안내 문안 확정.
-- 인프라·보안: Gateway, S3 권한, API/worker 배포, 보존 기간, LangSmith 전송 범위 확인.
+- 인프라·보안: Gateway, S3 권한, API/worker 배포, 보존 기간, LangSmith 전송 범위, CNPG Secret/ConfigMap, Flyway migration Job, connection budget, migration/runtime 계정 분리와 dev smoke test 확정.
 
 ## 템플릿 구성 계약
 

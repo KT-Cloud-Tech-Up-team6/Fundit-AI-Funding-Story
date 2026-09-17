@@ -66,10 +66,12 @@ Set `GOOGLE_CLOUD_PROJECT` and an internal `AI_SERVICE_TOKEN` in `.env`. For loc
 
 ```bash
 docker compose up -d
-uv run python -m funding_story.store
+docker compose run --rm migrate validate
 ```
 
-The compose file starts local PostgreSQL and Redis only. Full settings are in [`.env.example`](.env.example).
+The compose file starts an AI-only PostgreSQL on host port `5440`, Redis, and a one-shot
+Flyway migration service. Runtime processes validate the schema but never create tables.
+Full settings are in [`.env.example`](.env.example).
 
 ### 3. Start API, worker, and scheduler
 
@@ -128,7 +130,7 @@ uv build
 
 Tests use a separate PostgreSQL database and mocked model calls; rendering tests run real Chromium. The [synthetic fixture](tests/fixtures/appliance.json) and [reference image](tests/fixtures/original.png) are test material, not commercial product claims.
 
-Local validation includes 39 tests and an actual 14-block generation/export case. Generated product details can still differ from reference images. GitHub CI has passed. Production deployment and cross-team publishing integration are not claimed complete. See [validation scope](docs/validation.md).
+Local validation includes 55 tests and an actual 14-block generation/export case. Application-layer tests run against an in-memory repository without Docker; database tests create an isolated PostgreSQL 17 container and apply the production Flyway migrations. Generated product details can still differ from reference images. Production deployment and cross-team publishing integration are not claimed complete. See [validation scope](docs/validation.md).
 
 ## Learn more
 

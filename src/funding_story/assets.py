@@ -4,8 +4,10 @@ from uuid import uuid4
 
 from PIL import Image
 
-from . import store
+from .bootstrap import application
 from .config import settings
+
+records = application
 
 
 def put(project: str, content: bytes, mime: str = "image/png"):
@@ -30,12 +32,12 @@ def put(project: str, content: bytes, mime: str = "image/png"):
         path = Path(cfg.storage_dir) / asset_id
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
-    store.create(project, "asset", {"key": key, "mime": mime, "size": len(content)}, record_id=asset_id)
+    records.create(project, "asset", {"key": key, "mime": mime, "size": len(content)}, record_id=asset_id)
     return asset_id
 
 
 def read(asset_id, project):
-    row = store.get(asset_id, project)
+    row = records.get(asset_id, project)
     if row["kind"] != "asset":
         raise LookupError("이미지를 찾을 수 없습니다.")
     cfg = settings()
@@ -53,7 +55,7 @@ def read(asset_id, project):
 
 
 def delete(asset_id, project):
-    row = store.get(asset_id, project, kind="asset")
+    row = records.get(asset_id, project, kind="asset")
     cfg = settings()
     if cfg.storage_backend == "s3":
         import boto3
@@ -63,7 +65,7 @@ def delete(asset_id, project):
         )
     else:
         (Path(cfg.storage_dir) / row["id"]).unlink(missing_ok=True)
-    store.delete_record(asset_id, project, kind="asset")
+    records.delete_record(asset_id, project, kind="asset")
 
 
 def import_s3(project, key):

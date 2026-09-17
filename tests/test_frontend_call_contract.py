@@ -5,15 +5,18 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from funding_story import store, tasks
+from funding_story import tasks
 from funding_story.api import app
 from funding_story.config import settings
+from funding_story.infrastructure.persistence import connection, repository
 from funding_story.models import CopyResult, ProjectInput, Review
 from funding_story.planner import plan
 
+records = repository()
+
 
 @pytest.fixture
-def frontend_client(monkeypatch):
+def frontend_client(monkeypatch, postgres_container):
     monkeypatch.setattr("funding_story.api.kick", lambda _: None)
     project = str(uuid4())
     client = TestClient(
@@ -21,7 +24,7 @@ def frontend_client(monkeypatch):
         headers={"Authorization": "Bearer " + settings().ai_service_token, "X-Project-Id": project},
     )
     yield client
-    with store.connection() as conn:
+    with connection() as conn:
         conn.execute(
             "UPDATE ai_records SET data=jsonb_set(data, '{status}', '\"test_complete\"') "
             "WHERE project_id=%s AND kind IN ('run','chat')",
@@ -48,9 +51,7 @@ def confirmed_review():
 
 def test_frontend_request_sequence_reaches_png_and_text_result(frontend_client, monkeypatch):
     source = Path("tests/fixtures/original.png").read_bytes()
-    uploaded = frontend_client.post(
-        "/v1/assets", files={"file": ("product.png", source, "image/png")}
-    )
+    uploaded = frontend_client.post("/v1/assets", files={"file": ("product.png", source, "image/png")})
     assert uploaded.status_code == 201
     fixture = json.loads(Path("tests/fixtures/appliance.json").read_text())
     fixture["asset_ids"] = [uploaded.json()["asset_id"]]
@@ -67,7 +68,7 @@ def test_frontend_request_sequence_reaches_png_and_text_result(frontend_client, 
     review = confirmed_review()
     monkeypatch.setattr(tasks, "generate_checked", lambda *args, **kwargs: review)
     monkeypatch.setattr(tasks.provider, "chat_stream", lambda prompt: iter([review.reply]))
-    tasks.chat(store.get(chat_id))
+    tasks.chat(records.get(chat_id))
     with frontend_client.stream("GET", f"/v1/chats/{chat_id}/events") as stream:
         events = "\n".join(stream.iter_lines())
     assert "event: done" in events and "입력 내용을 정리했습니다." in events
@@ -103,12 +104,12 @@ def test_frontend_request_sequence_reaches_png_and_text_result(frontend_client, 
     )
     monkeypatch.setattr(tasks, "generate_checked", lambda *args, **kwargs: draft)
     monkeypatch.setattr(tasks.provider, "image", lambda prompt, references: (source, "image/png"))
-    tasks.generate(store.get(rid))
+    tasks.generate(records.get(rid))
     generated = frontend_client.get(f"/v1/runs/{rid}")
     assert generated.status_code == 200 and generated.json()["status"] == "succeeded"
     temporary_asset = next(
         job["asset_id"]
-        for job in store.get(rid)["data"]["image_jobs"].values()
+        for job in records.get(rid)["data"]["image_jobs"].values()
         if job["status"] == "succeeded"
     )
 
@@ -126,9 +127,7 @@ def test_frontend_request_sequence_reaches_png_and_text_result(frontend_client, 
     assert result["information"] == {k: v for k, v in fixture["information"].items() if k != "gift_details"}
     assert "gift_details" not in result["information"]
     assert result["fixed_content"]["crowdfunding_notice_key"].startswith("fundit.")
-    committed = frontend_client.post(
-        f"/v1/exports/{result['id']}/commit", json={"document_revision": 1}
-    )
+    committed = frontend_client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 1})
     assert committed.status_code == 200 and committed.json()["cleanup_pending"] is False
     assert frontend_client.get("/v1/assets/" + temporary_asset).status_code == 404
     assert frontend_client.get("/v1/assets/" + result["images"][0]["asset_id"]).status_code == 200
@@ -148,7 +147,7 @@ def test_first_turn_uses_registered_context_before_user_message(frontend_client,
         missing=["제작 계기", "강조할 사용 장면"],
     )
     monkeypatch.setattr(tasks, "generate_checked", lambda *args, **kwargs: review)
-    tasks.chat(store.get(accepted.json()["id"]))
+    tasks.chat(records.get(accepted.json()["id"]))
 
     session = frontend_client.get(f"/v1/sessions/{created['id']}").json()
     assert session["input"] == created["input"]

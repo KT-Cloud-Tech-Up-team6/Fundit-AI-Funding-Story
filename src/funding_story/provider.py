@@ -5,7 +5,7 @@ from google.genai import types
 from langsmith import traceable
 
 from .config import settings
-from .store import emit
+from .observability import emit
 
 
 def client():

@@ -5,21 +5,23 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from funding_story import store
 from funding_story.api import app
 from funding_story.config import settings
+from funding_story.infrastructure.persistence import connection, repository
+
+records = repository()
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, postgres_container):
     monkeypatch.setattr("funding_story.api.kick", lambda _: None)
-    with store.connection() as conn:
+    with connection() as conn:
         conn.execute("SELECT 1")
     test_client = TestClient(
         app, headers={"Authorization": "Bearer " + settings().ai_service_token, "X-Project-Id": str(uuid4())}
     )
     yield test_client
-    with store.connection() as conn:
+    with connection() as conn:
         conn.execute(
             "UPDATE ai_records SET data=jsonb_set(data, '{status}', '\"test_complete\"') WHERE project_id=%s AND kind IN ('run','chat')",
             (test_client.headers["X-Project-Id"],),
@@ -52,17 +54,17 @@ def test_run_confirmation_and_duplicate(client):
     sid = client.post("/v1/sessions", json=x).json()["id"]
     body = {"session_id": sid, "revision": 1, "idempotency_key": "same"}
     assert client.post("/v1/runs", json=body).status_code == 409
-    row = store.get(sid)
+    row = records.get(sid)
     row["data"]["review"] = review().model_dump()
-    store.save(sid, row["data"])
+    records.save(sid, row["data"])
     assert client.post(f"/v1/sessions/{sid}/confirm", json={"revision": 1}).status_code == 200
     first = client.post("/v1/runs", json=body)
     assert first.status_code == 202
     assert client.post("/v1/runs", json=body).json()["id"] == first.json()["id"]
     assert client.post("/v1/runs", json={**body, "revision": 2}).status_code == 409
-    row = store.get(first.json()["id"])
+    row = records.get(first.json()["id"])
     row["data"]["status"] = "failed"
-    store.save(row["id"], row["data"])
+    records.save(row["id"], row["data"])
 
 
 def test_asset_isolation(client):
@@ -109,7 +111,7 @@ def test_session_start_queues_assistant_led_first_turn_once(client):
 
 def test_chat_rejects_foreign_asset_without_changing_session(client):
     sid = client.post("/v1/sessions", json={"title": "LUMI S1"}).json()["id"]
-    foreign = store.create(str(uuid4()), "asset", {"mime": "image/png"})
+    foreign = records.create(str(uuid4()), "asset", {"mime": "image/png"})
     response = client.post(
         f"/v1/sessions/{sid}/messages",
         json={"message_id": "image", "revision": 1, "text": "사진입니다.", "asset_ids": [foreign]},
@@ -122,9 +124,9 @@ def test_chat_rejects_foreign_asset_without_changing_session(client):
 def test_export_returns_png_text_manifest_and_commit_clears_temporary_design(client):
     project = client.headers["X-Project-Id"]
     source = Path("tests/fixtures/original.png").read_bytes()
-    source_asset = client.post(
-        "/v1/assets", files={"file": ("original.png", source, "image/png")}
-    ).json()["asset_id"]
+    source_asset = client.post("/v1/assets", files={"file": ("original.png", source, "image/png")}).json()[
+        "asset_id"
+    ]
     scene = {
         "version": 1,
         "templateId": "appliance-reference-konva",
@@ -184,7 +186,7 @@ def test_export_returns_png_text_manifest_and_commit_clears_temporary_design(cli
             }
         ],
     }
-    rid = store.create(
+    rid = records.create(
         project,
         "run",
         {
@@ -216,27 +218,19 @@ def test_export_returns_png_text_manifest_and_commit_clears_temporary_design(cli
     assert image.content.startswith(b"\x89PNG")
     assert client.post(f"/v1/runs/{rid}/exports", json=body).json()["id"] == result["id"]
 
-    committed = client.post(
-        f"/v1/exports/{result['id']}/commit", json={"document_revision": 7}
-    )
+    committed = client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 7})
     assert committed.status_code == 200 and committed.json()["committed"] is True
     assert committed.json()["cleanup_pending"] is False
-    assert (
-        client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 7}).status_code
-        == 200
-    )
-    assert (
-        client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 8}).status_code
-        == 409
-    )
-    run = store.get(rid)["data"]
+    assert client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 7}).status_code == 200
+    assert client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 8}).status_code == 409
+    run = records.get(rid)["data"]
     assert "document" not in run and "snapshot" not in run and run["temporary_design_cleared"]
     assert client.get(f"/v1/exports/{result['id']}").json()["images"] == result["images"]
 
 
 def test_export_rejects_partial_run_unknown_slot_and_stale_revision(client):
     project = client.headers["X-Project-Id"]
-    rid = store.create(
+    rid = records.create(
         project,
         "run",
         {
@@ -247,10 +241,10 @@ def test_export_rejects_partial_run_unknown_slot_and_stale_revision(client):
     )
     body = {"source_input_revision": 2, "idempotency_key": "partial", "text_overrides": {}}
     assert client.post(f"/v1/runs/{rid}/exports", json=body).status_code == 409
-    row = store.get(rid)
+    row = records.get(rid)
     row["data"]["status"] = "succeeded"
     row["data"]["document"] = {"scene": {"blocks": []}}
-    store.save(rid, row["data"])
+    records.save(rid, row["data"])
     assert (
         client.post(
             f"/v1/runs/{rid}/exports",

@@ -1,6 +1,6 @@
 # Funding Story AI 팀별 인계 사항
 
-기준: AI API 0.2.0, 2026-09-16. 이 문서는 AI팀 제공 범위와 타팀 후속 작업을 분리한다.
+기준: AI API 0.2.0, 2026-09-17. 이 문서는 AI팀 제공 범위와 타팀 후속 작업을 분리한다.
 
 ## 현재 AI팀 제공물
 
@@ -9,7 +9,7 @@
 - 출력: 블록별 PNG 자산 매니페스트, 프로젝트 예산~신뢰와 안전 입력 텍스트, 공통 안내 key, 후속 AI용 summary/storyline.
 - 안정성: 프로젝트 범위, revision, message/idempotency key, 공급자/형식 재시도 분리, 성공 이미지 재사용.
 - 수명주기: BE 저장 성공 전 임시 후보 보존, commit 후 scene·snapshot·중간 생성 이미지·run checkpoint 정리.
-- 검증: 39개 자동 테스트, 로컬 HTTP health/auth/OpenAPI, 패키지 빌드. GitHub CI 성공. Docker 이미지 실행은 미검증.
+- 검증: 55개 자동 테스트, 로컬 HTTP health/auth/OpenAPI, 패키지 빌드. application 단위 테스트는 DB 없이 실행하며 DB 통합 테스트는 격리된 PostgreSQL 17을 사용한다. Docker 이미지 실행은 미검증.
 
 ## 프론트엔드팀
 
