@@ -2,15 +2,32 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_USER: funding_ai
-      POSTGRES_PASSWORD: local-ai-only
-      POSTGRES_DB: funding_ai
-    ports: ["127.0.0.1:55432:5432"]
-    volumes: ["ai-db:/var/lib/postgresql/data", "./scripts/postgres:/docker-entrypoint-initdb.d:ro"]
+      POSTGRES_USER: ${DB_USERNAME:-funding_ai}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-local-ai-only}
+      POSTGRES_DB: ${DB_NAME:-funding_ai}
+    ports: ["127.0.0.1:${DB_PORT:-5440}:5432"]
+    volumes: ["ai-db:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U funding_ai"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USERNAME:-funding_ai} -d ${DB_NAME:-funding_ai}",
+        ]
       interval: 3s
       retries: 20
+  migrate:
+    image: flyway/flyway:13.7.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-funding_ai}
+      FLYWAY_USER: ${DB_USERNAME:-funding_ai}
+      FLYWAY_PASSWORD: ${DB_PASSWORD:-local-ai-only}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_CONNECT_RETRIES: 20
+    command: migrate
+    volumes: ["./db/migration:/flyway/sql:ro"]
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]

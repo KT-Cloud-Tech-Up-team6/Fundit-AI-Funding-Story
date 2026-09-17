@@ -56,8 +56,10 @@ Linux에서는 `uv run playwright install --with-deps chromium`을 사용합니�
 
 ```bash
 docker compose up -d
-uv run python -m funding_story.store
+docker compose run --rm migrate validate
 ```
+
+Compose는 호스트 `5440`의 AI 전용 PostgreSQL, Redis, 일회성 Flyway migration을 실행합니다. API와 worker는 적용된 migration version과 필수 schema를 검사하고 불일치 시 기동을 중단합니다.
 
 다음 명령은 각각 별도 터미널에서 실행합니다.
 
@@ -110,9 +112,9 @@ uv run pytest -q
 uv build
 ```
 
-테스트는 별도 PostgreSQL DB와 모의 모델 호출을 사용하고 렌더링에는 실제 Chromium을 사용합니다. 테스트 자료는 [가상 제품 입력](../tests/fixtures/appliance.json)과 [참고 이미지](../tests/fixtures/original.png)입니다.
+테스트는 Testcontainers가 매 실행마다 만드는 PostgreSQL 17에 운영과 같은 Flyway migration을 적용하고, 모델 호출은 mock하며 렌더링에는 실제 Chromium을 사용합니다. 테스트 자료는 [가상 제품 입력](../tests/fixtures/appliance.json)과 [참고 이미지](../tests/fixtures/original.png)입니다.
 
-로컬 자동 테스트 39개와 실제 14블록 생성·출력을 확인했습니다. 생성 이미지의 제품 세부 형상 차이는 남습니다. GitHub CI도 통과했습니다. 운영 배포·타팀 게시 연동 완료를 의미하지 않습니다.
+로컬 자동 테스트 55개와 실제 14블록 생성·출력을 확인했습니다. application 계층 테스트는 in-memory repository로 Docker/DB 없이 실행되고, DB 통합 테스트는 격리된 PostgreSQL 17 컨테이너를 사용합니다. 생성 이미지의 제품 세부 형상 차이는 남습니다. 운영 배포·타팀 게시 연동 완료를 의미하지 않습니다.
 
 ## 관련 문서
 

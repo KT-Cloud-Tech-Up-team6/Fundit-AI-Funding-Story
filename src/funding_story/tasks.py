@@ -2,16 +2,20 @@ import json
 from typing import TypedDict
 
 from celery import Celery
-from langgraph.checkpoint.postgres import PostgresSaver
+from celery.signals import worker_process_init, worker_process_shutdown
 from langgraph.graph import END, START, StateGraph
 from langsmith import Client, tracing_context
 
-from . import assets, provider, store
+from . import assets, provider
+from .bootstrap import application, close_pools, new_checkpointer, open_pools
 from .config import settings
 from .graph import generate_checked
 from .intake import apply_changes, parse_initial_review, parse_review
 from .models import CopyResult, ProjectInput, Review, output_information
+from .observability import emit
 from .planner import plan, requirements, validate_copy
+
+records = application
 
 celery = Celery("funding_story", broker=settings().celery_broker_url)
 celery.conf.update(
@@ -22,6 +26,21 @@ celery.conf.update(
     broker_transport_options={"visibility_timeout": 7200},
     beat_schedule={"recover-undelivered": {"task": "funding.dispatch", "schedule": 15.0}},
 )
+
+
+@worker_process_init.connect
+def open_worker_database_pools(**kwargs):
+    try:
+        open_pools(checkpoints=True)
+    except RuntimeError as exc:
+        # Celery logs ordinary signal-handler exceptions and otherwise keeps starting.
+        raise SystemExit(str(exc)) from exc
+
+
+@worker_process_shutdown.connect
+def close_worker_database_pools(**kwargs):
+    close_pools()
+
 
 REVIEW_PROMPT = """템플릿의 필수 블록은 히어로, 문제 카드, 제품 전환, 전면 비주얼, 포지셔닝, 사용 이미지 모음, 비교 카드, 핵심 가치, 선물 구성입니다. 이 블록들은 삭제할 수 없습니다.
 Point는 확인한 강점마다 하나씩 배정합니다. 중복 강점을 늘리지 마세요. 필수 블록의 원고에 필요한 제품 사실이 부족하면 missing과 reply에 같은 보완 질문을 넣고 생성 확인을 미루세요.
@@ -70,28 +89,16 @@ reply는 실제 창작자와 대화하는 자연스러운 한국어로 작성하
 @celery.task(name="funding.dispatch")
 def dispatch():
     # Durable outbox: accepted rows survive a broker outage. Advisory locks suppress duplicate deliveries.
-    with store.connection() as conn:
-        rows = conn.execute(
-            "SELECT id FROM ai_records WHERE kind IN ('chat','run') AND data->>'status' IN ('queued','running')"
-        ).fetchall()
-    for row in rows:
-        execute.delay(row["id"])
+    for record_id in records.pending_job_ids():
+        execute.delay(record_id)
 
 
 @celery.task(name="funding.execute")
 def execute(rid):
-    with store.connection() as lock:
-        if not lock.execute(
-            "SELECT pg_try_advisory_lock(hashtextextended(%s,0)) AS acquired", (rid,)
-        ).fetchone()["acquired"]:
+    with records.claim_job(rid) as row:
+        if row is None:
             return
         try:
-            row = store.get(rid)
-            if row["data"]["status"] not in ("queued", "running"):
-                return
-            data = row["data"]
-            data["status"] = "running"
-            store.save(rid, data)
             cfg = settings()
             trace_enabled = cfg.langsmith_tracing and bool(cfg.langsmith_api_key)
             with tracing_context(
@@ -105,17 +112,13 @@ def execute(rid):
                 else:
                     generate(row)
         except Exception as exc:  # noqa: BLE001 - persist terminal job/slot state for recovery
-            data = store.get(rid)["data"]
-            data.update(status="failed", error=type(exc).__name__ + ": " + str(exc)[:500])
-            store.save(rid, data)
-            store.emit("job_failed", run_id=rid, error_type=type(exc).__name__)
-        finally:
-            lock.execute("SELECT pg_advisory_unlock(hashtextextended(%s,0))", (rid,))
+            records.fail_job(rid, exc)
+            emit("job_failed", run_id=rid, error_type=type(exc).__name__)
 
 
 def chat(row):
     rid, project, data = row["id"], row["project_id"], row["data"]
-    session = store.get(data["session_id"], project)
+    session = records.get(data["session_id"], project)
     context = json.dumps(
         {
             "input": session["data"]["input"],
@@ -133,9 +136,7 @@ def chat(row):
     )
     review = generate_checked(
         rid + ":review",
-        (INITIAL_REVIEW_PROMPT if initial else REVIEW_PROMPT)
-        + "\n등록 정보와 대화 상태(JSON):\n"
-        + context,
+        (INITIAL_REVIEW_PROMPT if initial else REVIEW_PROMPT) + "\n등록 정보와 대화 상태(JSON):\n" + context,
         Review,
         parser=parse_initial_review if initial else lambda raw: parse_review(raw, source, latest_message),
         references=[assets.read(a, project) for a in session["data"]["input"]["asset_ids"]],
@@ -144,7 +145,7 @@ def chat(row):
     if initial and not data.get("reply_done"):
         data["reply"] = review.reply
         data["reply_done"] = True
-        store.save(rid, data)
+        records.save(rid, data)
     elif not data.get("reply_done"):
         data["reply"] = ""
         prompt = (
@@ -153,23 +154,20 @@ def chat(row):
         )
         for chunk in provider.chat_stream(prompt):
             data["reply"] += chunk
-            store.save(rid, data)
+            records.save(rid, data)
         data["reply_done"] = True
-        store.save(rid, data)
-    with store.connection() as conn:
-        current = store.get(session["id"], project, conn, True)
-        if current["revision"] != data["source_revision"]:
-            raise ValueError("대화 처리 중 입력이 변경되었습니다.")
-        body = current["data"]
-        body["input"] = (
+        records.save(rid, data)
+    records.complete_chat(
+        session_id=session["id"],
+        chat_id=rid,
+        project=project,
+        source_revision=data["source_revision"],
+        input_data=(
             source.model_dump() if initial else apply_changes(source, review, latest_message).model_dump()
-        )
-        body["review"] = review.model_dump()
-        body["messages"].append({"role": "assistant", "text": data["reply"]})
-        body["active_chat"] = None
-        store.save(session["id"], body, conn, current["revision"] + 1)
-        data.update(status="succeeded", review=review.model_dump(), revision=current["revision"] + 1)
-        store.save(rid, data, conn)
+        ),
+        review=review.model_dump(),
+        reply=data["reply"],
+    )
 
 
 COPY_RULES = """사용 시간·성능 수치를 쓰면 그 수치에 붙은 측정 조건도 같은 블록 안에 함께 쓰세요. 슬롯이 짧으면 해당 수치 자체를 생략하고 사용 가치만 설명하세요.
@@ -202,13 +200,13 @@ def build_plan(row):
 
 
 def write_copy(state):
-    row = store.get(state["rid"])
+    row = records.get(state["rid"])
     rid, data = row["id"], row["data"]
     info = ProjectInput.model_validate(data["snapshot"]["input"])
     review = Review.model_validate(data["snapshot"]["review"])
     scene, fixed = state["scene"], state["fixed"]
     data["stage"] = "문구 작성"
-    store.save(rid, data)
+    records.save(rid, data)
     prompt = (
         COPY_RULES
         + "\n문제 카드의 heading/body는 확인한 불편 상황 4개를 각각 슬롯 길이에 맞게 간결하게 작성하세요. 긴 설명을 그대로 붙이지 마세요. max_chars를 지키고 reference의 줄 수와 정보 밀도를 참고하세요."
@@ -238,7 +236,7 @@ def write_copy(state):
 
 
 def create_images(state):
-    row = store.get(state["rid"])
+    row = records.get(state["rid"])
     rid, project, data = row["id"], row["project_id"], row["data"]
     info = ProjectInput.model_validate(data["snapshot"]["input"])
     scene = json.loads(json.dumps(state["scene"]))
@@ -251,7 +249,7 @@ def create_images(state):
         if key not in jobs:
             jobs[key] = {"status": "queued"}
     data.update(stage="이미지 생성", total_images=len(slots))
-    store.save(rid, data)
+    records.save(rid, data)
     for slot in slots:
         key = slot["id"]
         job = jobs[key]
@@ -263,7 +261,7 @@ def create_images(state):
             continue
         try:
             job["status"] = "running"
-            store.save(rid, data)
+            records.save(rid, data)
             prompt = draft.image_prompts[key]
             if key.startswith("rewards."):
                 reward = info.rewards[int(key.rsplit("-", 1)[1])]
@@ -277,13 +275,13 @@ def create_images(state):
         except Exception as exc:  # noqa: BLE001 - persist terminal job/slot state for recovery
             job.update(status="failed", error=type(exc).__name__, code=getattr(exc, "code", None))
         data["completed_images"] = sum(j["status"] == "succeeded" for j in jobs.values())
-        store.save(rid, data)
-    store.save(rid, data)
+        records.save(rid, data)
+    records.save(rid, data)
     return {"scene": scene}
 
 
 def assemble(state):
-    row = store.get(state["rid"])
+    row = records.get(state["rid"])
     rid, data = row["id"], row["data"]
     info = ProjectInput.model_validate(data["snapshot"]["input"])
     scene = state["scene"]
@@ -307,7 +305,7 @@ def assemble(state):
     )
     # Unregistered reward cards are intentional editable slots, never successful generated images.
     data["input_required_slots"] = [k for k, v in jobs.items() if v["status"] == "input_required"]
-    store.save(rid, data)
+    records.save(rid, data)
 
 
 class GenerationState(TypedDict, total=False):
@@ -319,7 +317,7 @@ class GenerationState(TypedDict, total=False):
 
 def generate(row):
     graph = StateGraph(GenerationState)
-    graph.add_node("select_blocks", lambda state: build_plan(store.get(state["rid"])))
+    graph.add_node("select_blocks", lambda state: build_plan(records.get(state["rid"])))
     graph.add_node("write_copy", write_copy)
     graph.add_node("generate_images", create_images)
     graph.add_node("assemble_document", lambda state: assemble(state) or {})
@@ -328,11 +326,11 @@ def generate(row):
     graph.add_edge("write_copy", "generate_images")
     graph.add_edge("generate_images", "assemble_document")
     graph.add_edge("assemble_document", END)
-    with PostgresSaver.from_conn_string(settings().database_url) as saver:
-        compiled = graph.compile(checkpointer=saver)
-        config = {"configurable": {"thread_id": row["id"] + ":pipeline"}, "metadata": {"run_id": row["id"]}}
-        snapshot = compiled.get_state(config)
-        if snapshot.values and not snapshot.next:
-            # Explicit partial-image retry re-enters the image node; completed slots remain reusable.
-            compiled.update_state(config, {}, as_node="write_copy")
-        compiled.invoke(None if snapshot.values else {"rid": row["id"]}, config)
+    saver = new_checkpointer()
+    compiled = graph.compile(checkpointer=saver)
+    config = {"configurable": {"thread_id": row["id"] + ":pipeline"}, "metadata": {"run_id": row["id"]}}
+    snapshot = compiled.get_state(config)
+    if snapshot.values and not snapshot.next:
+        # Explicit partial-image retry re-enters the image node; completed slots remain reusable.
+        compiled.update_state(config, {}, as_node="write_copy")
+    compiled.invoke(None if snapshot.values else {"rid": row["id"]}, config)

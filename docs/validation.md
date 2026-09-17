@@ -1,11 +1,15 @@
 # 검증 범위
 
-기준: 2026-09-16, AI API 0.2.0. 이 문서는 저장소에서 확인한 범위와 아직 확인하지 않은 범위를 구분한다.
+기준: 2026-09-17, AI API 0.2.0. 이 문서는 저장소에서 확인한 범위와 아직 확인하지 않은 범위를 구분한다.
 
 ## 자동 검증
 
 - Ruff: `src`, `tests`, `scripts` 검사.
-- pytest: 39개 통과. 모델 호출은 mock이며 PostgreSQL·Chromium 렌더링은 실제 사용.
+- pytest: 55개 통과. 모델 호출은 mock이며 DB 통합 테스트는 Testcontainers PostgreSQL, 렌더링 테스트는 실제 Chromium을 사용.
+- in-memory repository fake로 session → chat → confirm → run과 idempotency 충돌을 Docker/DB 없이 검증.
+- application/domain의 framework·infrastructure 독립성과 runtime composition root 경계를 자동 검사.
+- 빈 PostgreSQL 17에 Flyway V1/V2 적용, 재실행 무변경, 기존 schema 검사 후 baseline, checkpoint migration 0~9 기준을 확인.
+- 50개 동시 query가 설정된 psycopg pool을 통해 완료되고 readiness가 최신 schema version을 확인.
 - 세션 진입·메시지·SSE·확인 revision·idempotency·프로젝트 자산 격리.
 - 필수 블록과 선택 Point·Information 구성, 실패 이미지 슬롯만 재시도.
 - PNG export·BE 저장 commit·임시 데이터 정리·이미지 자산 수명주기.
@@ -13,7 +17,7 @@
 - 입력에 `gift_details`가 있어도 조립·export에서 제외.
 - wheel/sdist에 템플릿·Konva JS·라이선스 포함, OpenAPI 코드 일치.
 
-실행법과 환경은 [개발 안내](development.md)를 따른다. GitHub Actions에서도 PostgreSQL·Chromium·폰트 설치, Ruff, pytest, 패키지 빌드를 실행한다.
+실행법과 환경은 [개발 안내](development.md)를 따른다. GitHub Actions에서도 Testcontainers와 production Flyway migration, Chromium·폰트 설치, LangGraph schema drift 검사, Ruff, pytest, 패키지 빌드를 실행한다.
 
 ## 실제 모델·출력 사례
 

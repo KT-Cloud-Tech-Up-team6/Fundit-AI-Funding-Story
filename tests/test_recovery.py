@@ -4,9 +4,13 @@ from uuid import uuid4
 import pytest
 from test_contracts import review
 
-from funding_story import assets, store, tasks
+from funding_story import assets, tasks
+from funding_story.infrastructure.persistence import connection, repository
 from funding_story.models import CopyResult, ProjectInput
 from funding_story.planner import plan
+
+records = repository()
+pytestmark = pytest.mark.usefixtures("postgres_container")
 
 
 def test_pipeline_retries_only_failed_images_and_restores_other_blocks(monkeypatch):
@@ -37,7 +41,7 @@ def test_pipeline_retries_only_failed_images_and_restores_other_blocks(monkeypat
         return blob, "image/png"
 
     monkeypatch.setattr(tasks.provider, "image", image)
-    rid = store.create(
+    rid = records.create(
         project,
         "run",
         {
@@ -47,12 +51,12 @@ def test_pipeline_retries_only_failed_images_and_restores_other_blocks(monkeypat
             "image_jobs": {},
         },
     )
-    tasks.generate(store.get(rid))
-    first = store.get(rid)["data"]
+    tasks.generate(records.get(rid))
+    first = records.get(rid)["data"]
     assert first["status"] == "partially_succeeded"
     successful = {k: v["asset_id"] for k, v in first["image_jobs"].items() if v["status"] == "succeeded"}
-    tasks.generate(store.get(rid))
-    final = store.get(rid)["data"]
+    tasks.generate(records.get(rid))
+    final = records.get(rid)["data"]
     assert final["status"] == "succeeded"
     assert "gift_details" not in final["document"]["information"]
     assert calls.count("hero.image") == 2
@@ -75,7 +79,7 @@ def test_unregistered_reward_slots_are_persisted(monkeypatch, count):
     info.asset_ids = [assets.put(project, blob)]
     scene, _ = plan(info, review())
     scene["blocks"] = scene["blocks"][-1:]
-    rid = store.create(
+    rid = records.create(
         project, "run", {"status": "running", "snapshot": {"input": info.model_dump()}, "image_jobs": {}}
     )
     monkeypatch.setattr(tasks.provider, "image", lambda *args: (blob, "image/png"))
@@ -93,11 +97,11 @@ def test_unregistered_reward_slots_are_persisted(monkeypatch, count):
             },
         }
     )
-    jobs = store.get(rid)["data"]["image_jobs"]
+    jobs = records.get(rid)["data"]["image_jobs"]
     assert jobs["rewards.image-0"]["status"] == "succeeded"
     assert jobs["rewards.image-1"]["status"] == ("succeeded" if count == 2 else "input_required")
     assert jobs["rewards.image-2"]["status"] == "input_required"
-    with store.connection() as c:
+    with connection() as c:
         c.execute(
             "UPDATE ai_records SET data=jsonb_set(data,'{status}','\"test_complete\"') WHERE id=%s", (rid,)
         )
@@ -129,7 +133,7 @@ def test_checkpoint_resumes_after_assembly_exception_without_model_calls(monkeyp
         "assemble",
         lambda state: (_ for _ in ()).throw(RuntimeError("simulated assembly interruption")),
     )
-    rid = store.create(
+    rid = records.create(
         project,
         "run",
         {
@@ -140,9 +144,9 @@ def test_checkpoint_resumes_after_assembly_exception_without_model_calls(monkeyp
         },
     )
     with pytest.raises(RuntimeError):
-        tasks.generate(store.get(rid))
+        tasks.generate(records.get(rid))
     count = len(calls)
     monkeypatch.setattr(tasks, "assemble", original)
-    tasks.generate(store.get(rid))
-    assert store.get(rid)["data"]["status"] == "succeeded"
+    tasks.generate(records.get(rid))
+    assert records.get(rid)["data"]["status"] == "succeeded"
     assert len(calls) == count
