@@ -15,6 +15,8 @@
 
 Funding Story AI is Fundit's internal AI API. It reads registered product information, asks for missing details, and presents a summary and product strengths for user confirmation. An asynchronous generation job fills a design template with copy and images. The final output is ordered PNG assets and project information text.
 
+It also exposes Content Insights independently of the optional authoring flow. A project-service snapshot creates required page-summary and storyline artifacts, each with its own state, queue, prompt version, and retry lifecycle. Storyline v2 returns two ordered headline/detail blocks without exposing internal semantic labels to the frontend.
+
 This repository contains the AI service, worker, template resources, tests, and integration contracts. Frontend screens, project ownership, permanent project content, and publishing belong to the frontend/backend services.
 
 [Features](#what-does-funding-story-ai-do) · [Quick Start](#-quick-start) · [Architecture](#-architecture) · [Output](#what-you-get) · [Documentation](#learn-more)
@@ -44,6 +46,15 @@ This repository contains the AI service, worker, template resources, tests, and 
 - Returns budget, schedule, team, policy, and risks separately as text. Gift detail descriptions are excluded.
 - Clears temporary design data after the backend confirms permanent content storage.
 - Does not offer design re-editing of saved PNGs or a frontend editor in this repository.
+
+### Content Insights
+
+- Creates `PAGE_SUMMARY` without a Funding Story session or export.
+- Accepts one parent request while persisting and running `PAGE_SUMMARY` and `STORYLINE` independently.
+- Requires both Page Summary and Storyline for registration readiness while keeping their execution and retries independent.
+- Returns Storyline as two ordered headline/description sections; internal section roles are not rendered to users.
+- Uses dedicated Celery queues and durable database recovery so optional image work cannot consume the Page Summary subscription.
+- Marks older project revisions stale and supports retrying only the failed, retryable artifact.
 
 ## 🚀 Quick Start
 
@@ -89,7 +100,7 @@ uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celery
 
 Calls follow **FE → BE → AI**. The backend verifies ownership and sends `Authorization: Bearer <internal-token>` plus `X-Project-Id`. Do not expose this token to the browser.
 
-The call sequence is upload → session → start/chat → confirm revision → run → poll/retry → export → backend save → export commit. See [API contracts](docs/architecture.md), [OpenAPI](docs/openapi.json), and [frontend mapping](docs/frontend-call-contract.md).
+The optional authoring sequence is upload → session → start/chat → confirm revision → run → poll/retry → export → backend save → export commit. The required summary sequence is project snapshot → Content Insights run → artifact status → backend canonical save. Backend and frontend implementation is not shipped from this repository. See [API contracts](docs/architecture.md), [Content Insights integration contract](docs/content-insights-integration-interface.md), [OpenAPI](docs/openapi.json), and [frontend mapping](docs/frontend-call-contract.md).
 
 ## 🏗 Architecture
 
@@ -115,7 +126,7 @@ Python 3.12 / uv / FastAPI / LangGraph / Celery / PostgreSQL / Redis / Google Ge
 
 - Ordered PNG asset IDs with block IDs, dimensions, and alternative text.
 - Project information text and a fixed crowdfunding-notice key.
-- `project_summary.summary` and `storyline` for downstream use.
+- Authoring-preview `project_summary.summary` and `storyline`; canonical public summaries come from Content Insights.
 - Export ID and source revision for backend storage confirmation.
 
 See the [example response](docs/examples/export-result.json). Supplied reward prices remain unchanged. Unregistered cards in the fixed three-card reward design remain `input_required`; they are not fabricated.
@@ -130,13 +141,16 @@ uv build
 
 Tests use a separate PostgreSQL database and mocked model calls; rendering tests run real Chromium. The [synthetic fixture](tests/fixtures/appliance.json) and [reference image](tests/fixtures/original.png) are test material, not commercial product claims.
 
-Local validation includes 55 tests and an actual 14-block generation/export case. Application-layer tests run against an in-memory repository without Docker; database tests create an isolated PostgreSQL 17 container and apply the production Flyway migrations. Generated product details can still differ from reference images. Production deployment and cross-team publishing integration are not claimed complete. See [validation scope](docs/validation.md).
+Local validation includes 77 tests and an actual 14-block generation/export case. Application-layer tests run against an in-memory repository without Docker; database tests create an isolated PostgreSQL 17 container and apply the production Flyway migrations. Generated product details can still differ from reference images. Production deployment and live-model Content Insights approval are not claimed complete. See [validation scope](docs/validation.md).
 
 ## Learn more
 
 - [API and execution contracts](docs/architecture.md)
 - [Development and configuration](docs/development.md)
 - [Frontend call mapping](docs/frontend-call-contract.md)
+- [Content Insights API design](docs/content-insights-api-design.md)
+- [Content Insights operations and smoke test](docs/content-insights-operations.md)
+- [Content Insights implementation checklist](docs/content-insights-implementation-checklist.md)
 - [Team handoff](docs/team-handoff.md)
 - [Validation scope](docs/validation.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)

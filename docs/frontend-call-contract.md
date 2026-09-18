@@ -2,6 +2,8 @@
 
 이 문서는 2026-09-16 `Fundit-FE` main의 `ProjectStoryForm → StoryEditor → FundingStoryModal` 화면 구조와 디자인을 유지하는 목표 호출 계약이다. AI 저장소는 FE 연결 완료를 보장하지 않는다. FE 연동 시 별도 AI 작성 화면을 추가하지 않고 모달 내부의 목업 reducer와 timer를 API 어댑터로 교체한다.
 
+선택적 Funding Story 작성 흐름과 공개 상세의 Content Insights 조회 흐름은 분리한다. FE는 Content Insights AI API를 직접 호출하지 않고 Project Service가 저장한 canonical 결과만 조회한다.
+
 | 기존 화면 동작 | AI API | FE가 보관할 값 | 상태·주의점 |
 |---|---|---|---|
 | 모달 열기 | `GET context`는 BE 책임, 이후 `GET /sessions/latest` 또는 `POST /sessions` | session ID·revision | 등록 사실을 중복 질문하지 않음 |
@@ -35,3 +37,17 @@ FE의 `/api/funding-story` 프록시와 BE 중계 API는 세션 생성 → 메�
 | 429/503 provider | AI 내부 제한 재시도 뒤 실패한 경우 재시도 UI 제공 |
 
 SSE 단절 시 같은 메시지를 새 ID로 자동 재전송하지 않는다. 기존 chat 상태와 세션 메시지를 먼저 조회한다. 생성·export는 idempotency key를 재사용한다.
+
+## 공개 상세의 요약 타입
+
+Project Service는 같은 표시명을 반복하지 않고 최소한 다음 의미를 구분해 제공한다.
+
+| type | 임시 표시명 | 출처 | 미존재 처리 |
+|---|---|---|---|
+| `PAGE_SUMMARY` | 페이지 요약 | 등록 프로젝트 snapshot 기반 Content Insights | 필수 결과 준비 전 공개/심사 gate 정책 적용 |
+| `STORYLINE` | 스토리라인 | 등록 시 필수 Storyline artifact | 성공 시 두 headline·description 블록 표시, 준비 전 공개 화면에서 생략 |
+| `LIVE_SUMMARY` | 라이브 요약 | 종료된 라이브 요약 | 라이브 미진행 시 항목 자체를 생략 |
+
+Storyline의 두 블록은 내부적으로 리워드 정체성과 프로젝트 필요성을 구분하지만 Project Service가 role을 제거하므로 FE는 WHAT·WHY·DIFFERENCE를 표시하지 않는다. 각 블록의 첫 줄은 headline, 둘째 줄은 description으로 렌더링한다.
+
+사용자 입력 확인 화면의 요약과 기존 Funding Story export `project_summary` preview는 위 공개 상세 데이터가 아니다. 현재 공개 화면은 `SUCCEEDED` 결과만 표시하고 `PENDING`, `FAILED`, `NOT_REQUESTED`, `STALE`은 생략한다.

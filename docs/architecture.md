@@ -1,6 +1,6 @@
 # Funding Story AI 실행·API 계약
 
-기준: 2026-09-16, API 0.2.0. 이 저장소는 LangGraph·AI API와 호출 계약을 소유한다. FE 화면·디자인·Tiptap·Polotno 및 BE 프로젝트 본문 저장 코드는 범위에 포함하지 않는다.
+기준: 2026-09-17, API 0.3.0. 이 저장소는 LangGraph·AI API와 호출 계약을 소유한다. FE 화면·디자인·Tiptap·Polotno 및 BE 프로젝트 본문 저장 코드는 범위에 포함하지 않는다.
 
 ## 책임 경계
 
@@ -11,6 +11,9 @@
 | 임시 디자인 | AI | PNG 내보내기와 BE 저장 확인 전까지만 유지 |
 | PNG·생성 이미지 파일 | 인프라 저장소 | AI가 저장, BE가 프로젝트 본문과 연결 |
 | 최종 PNG 순서·대체 텍스트·하단 본문 | BE | FE가 AI 결과를 불러온 뒤 revision 저장 |
+| 정규 프로젝트 snapshot·source revision | BE | 등록 완료 판단, Content Insights 입력과 최신 결과 판정 |
+| 페이지 요약·스토리라인 artifact | AI | 독립 생성·상태·재시도·prompt version |
+| 공개용 canonical 요약 결과 | BE | 최신 source revision 성공 결과만 저장·조회 |
 | 화면·모달·본문 편집 | FE/디자인 | 본 저장소는 요청·응답 계약과 샘플 제공 |
 
 호출 경로는 FE → BE → AI다. AI는 내부 Bearer 토큰과 `X-Project-Id`를 요구하며 사용자 인증을 직접 대체하지 않는다. FE가 AI 토큰을 보유하거나 AI API를 직접 공개 호출하면 안 된다.
@@ -28,6 +31,19 @@ session
 ```
 
 `succeeded` run만 PNG로 내보낼 수 있다. 1~2종 선물에서 남는 고정 템플릿 이미지 슬롯의 `input_required`는 중립색 편집 대기 프레임으로 렌더링하므로 export를 막지 않는다. 실제 이미지 생성 `failed`가 남은 `partially_succeeded` 결과는 409로 거부한다. 저장 성공 전에는 commit을 호출하지 않는다.
+
+Content Insights는 선택적 Funding Story 상태 흐름과 독립적이다.
+
+```text
+project content saved + source revision fixed
+  → content insight parent QUEUED/RUNNING
+  → PAGE_SUMMARY QUEUED/RUNNING/SUCCEEDED|FAILED
+  → STORYLINE    QUEUED/RUNNING/SUCCEEDED|FAILED
+  → required_artifacts_ready로 등록·심사 gate 판단
+  → 더 최신 source revision 생성 시 이전 run/artifact STALE
+```
+
+policy v2에서 Page Summary와 Storyline은 모두 등록 완료 시 필수다. 두 artifact가 모두 성공해야 `required_artifacts_ready=true`이며 하나만 실패한 `PARTIALLY_SUCCEEDED` 상태는 readiness를 충족하지 못한다. Storyline은 schema v2의 두 section으로 생성하고 각 section은 headline·description 한 줄을 가진다. 내부 section role은 공개 FE에 표시하지 않는다.
 
 ## API
 
@@ -51,6 +67,9 @@ session
 | `POST /v1/runs/{id}/exports` | 문구 수정값 적용, 블록별 PNG+텍스트 결과 생성 |
 | `GET /v1/exports/{id}` | 내보내기 결과 복구 |
 | `POST /v1/exports/{id}/commit` | BE 저장 revision 확인, 임시 디자인 정리 |
+| `POST /v1/content-insight-runs` | 정규 프로젝트 snapshot으로 parent와 독립 artifact 작업 생성 |
+| `GET /v1/content-insight-runs/{id}` | artifact별 상태·결과·오류와 required readiness 조회 |
+| `POST /v1/content-insight-runs/{id}/artifacts/{type}/retry` | retryable 실패 artifact 하나만 재시도 |
 
 정확한 필드와 오류 응답은 [OpenAPI](openapi.json)를 따른다.
 
@@ -70,7 +89,7 @@ PNG 내보내기 요청은 다음 형태다.
 }
 ```
 
-응답의 `images`는 `block_id`, `order`, `asset_id`, `width`, `height`, `alt`를 가진다. `information`은 예산·일정·팀·정책·예상 어려움 입력을 구조화한 일반 텍스트다. `fixed_content.crowdfunding_notice_key`는 공통 안내 컴포넌트를 가리키며 LLM 생성 문구가 아니다. `project_summary`는 후속 라이브커머스 입력이다.
+응답의 `images`는 `block_id`, `order`, `asset_id`, `width`, `height`, `alt`를 가진다. `information`은 예산·일정·팀·정책·예상 어려움 입력을 구조화한 일반 텍스트다. `fixed_content.crowdfunding_notice_key`는 공통 안내 컴포넌트를 가리키며 LLM 생성 문구가 아니다. `project_summary`는 후속 라이브커머스 입력이다. 다만 기존 export의 `project_summary`는 Funding Story 작성 과정의 호환 preview이며 공개 상세 페이지의 canonical Page Summary/Storyline이 아니다. canonical 결과는 Content Insights가 생성하고 Project Service가 최신 source revision과 함께 저장한다.
 
 `text_overrides`는 존재하는 텍스트 슬롯만 허용하며 레이아웃·이미지·도형 변경을 받지 않는다. 최종 PNG의 디자인 재편집과 부분 블록 재생성 API는 제공하지 않는다.
 
@@ -101,6 +120,8 @@ Redis는 Celery 전달용이며 결과 원본이 아니다. PostgreSQL이 세션
 DB schema 변경 주체는 Flyway 하나다. `ai_records`, `ai_requests`, LangGraph checkpoint table은 `db/migration`의 forward-only SQL로 관리하며 API·worker가 런타임에 DDL을 실행하지 않는다. API와 worker는 각각 제한된 psycopg runtime pool을 사용하고 LangGraph checkpoint는 별도 pool을 사용한다. `/health`는 process liveness, `/health/ready`는 DB 연결과 최신 Flyway version을 확인한다.
 
 SQL과 transaction 구현은 `infrastructure/persistence`의 Postgres adapter에 있고 domain에는 repository port만 둔다. session/chat/run/export와 worker 상태 전이는 framework 비의존 `application/service.py`가 담당한다. `bootstrap.py`가 application과 Postgres adapter·pool lifecycle을 조립하며 API·Celery·asset·graph 진입점은 infrastructure를 직접 import하지 않는다. AI DB는 project-service DB 계정이나 table을 요구하지 않는다.
+
+Content Insights도 기존 generic `ai_records`/`ai_requests`를 사용한다. parent에는 snapshot hash와 적용 policy를, child artifact에는 source revision/hash, job key, schema/prompt/model version, 시도 횟수와 결과 또는 안전한 오류를 저장한다. artifact별 queue와 advisory lock을 사용하며 beat dispatcher가 broker 미전달 작업을 복구한다.
 
 최종 파일 저장소와 보존 기간은 인프라팀이 확정한다. local backend는 검증용이다. 운영 S3에서는 BE가 프로젝트 자산을 검증하고 AI에는 승인된 key만 전달한다.
 
