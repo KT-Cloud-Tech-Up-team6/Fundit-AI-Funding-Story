@@ -15,6 +15,7 @@ records = repository()
 @pytest.fixture
 def client(monkeypatch, postgres_container):
     monkeypatch.setattr("funding_story.api.kick", lambda _: None)
+    monkeypatch.setattr("funding_story.content_insights.api.kick", lambda *_: None)
     with connection() as conn:
         conn.execute("SELECT 1")
     test_client = TestClient(
@@ -23,7 +24,13 @@ def client(monkeypatch, postgres_container):
     yield test_client
     with connection() as conn:
         conn.execute(
-            "UPDATE ai_records SET data=jsonb_set(data, '{status}', '\"test_complete\"') WHERE project_id=%s AND kind IN ('run','chat')",
+            "UPDATE ai_records SET data=jsonb_set(data, '{status}', '\"test_complete\"') "
+            "WHERE project_id=%s AND kind IN ('run','chat')",
+            (test_client.headers["X-Project-Id"],),
+        )
+        conn.execute(
+            "UPDATE ai_records SET data=jsonb_set(data, '{status}', '\"STALE\"') "
+            "WHERE project_id=%s AND kind IN ('content_insight_run','content_insight_artifact')",
             (test_client.headers["X-Project-Id"],),
         )
 
@@ -91,6 +98,76 @@ def test_intake_can_begin_without_description_or_images_and_resume(client):
         ).status_code
         == 202
     )
+
+
+def content_insight_request():
+    return {
+        "source_revision": 1,
+        "idempotency_key": "project-content-1",
+        "trigger": "PROJECT_REGISTRATION_COMPLETED",
+        "requested_artifacts": ["PAGE_SUMMARY", "STORYLINE"],
+        "project_snapshot": {
+            "title": "LUMI S1",
+            "category": "테크·가전",
+            "description": "약 1.3kg 본체와 세척 가능한 필터를 갖춘 무선 청소기입니다.",
+            "rewards": [
+                {
+                    "name": "얼리버드",
+                    "description": "본체와 틈새 노즐로 구성됩니다.",
+                    "price": 129000,
+                }
+            ],
+            "story_content": [
+                {"type": "TEXT", "value": "좁은 공간을 자주 청소하는 사용자를 위해 준비했습니다."}
+            ],
+        },
+    }
+
+
+def test_content_insight_api_is_idempotent_and_project_scoped(client):
+    body = content_insight_request()
+    first = client.post("/v1/content-insight-runs", json=body)
+    duplicate = client.post("/v1/content-insight-runs", json=body)
+
+    assert first.status_code == 202
+    assert duplicate.status_code == 202 and duplicate.json()["run_id"] == first.json()["run_id"]
+    result = first.json()
+    assert result["artifacts"]["PAGE_SUMMARY"]["required"] is True
+    assert result["artifacts"]["STORYLINE"]["required"] is True
+    assert client.get(f"/v1/content-insight-runs/{result['run_id']}").status_code == 200
+    assert (
+        client.get(
+            f"/v1/content-insight-runs/{result['run_id']}",
+            headers={"X-Project-Id": str(uuid4())},
+        ).status_code
+        == 404
+    )
+
+    changed = json.loads(json.dumps(body))
+    changed["project_snapshot"]["description"] = "변경된 설명"
+    assert client.post("/v1/content-insight-runs", json=changed).status_code == 409
+
+
+def test_content_insight_api_validates_source_and_retries_one_artifact(client):
+    invalid = content_insight_request()
+    invalid["project_snapshot"]["description"] = ""
+    invalid["project_snapshot"]["rewards"] = []
+    invalid["project_snapshot"]["story_content"] = []
+    assert client.post("/v1/content-insight-runs", json=invalid).status_code == 422
+
+    created = client.post("/v1/content-insight-runs", json=content_insight_request()).json()
+    storyline_id = created["artifacts"]["STORYLINE"]["artifact_id"]
+    row = records.get(storyline_id)
+    row["data"].update(
+        status="FAILED",
+        error={"code": "MODEL_UNAVAILABLE", "retryable": True, "message": "생성 작업에 실패했습니다."},
+    )
+    records.save(storyline_id, row["data"])
+
+    retried = client.post(f"/v1/content-insight-runs/{created['run_id']}/artifacts/STORYLINE/retry")
+    assert retried.status_code == 202
+    assert retried.json()["artifacts"]["STORYLINE"]["status"] == "QUEUED"
+    assert retried.json()["artifacts"]["PAGE_SUMMARY"]["status"] == "QUEUED"
 
 
 def test_session_start_queues_assistant_led_first_turn_once(client):

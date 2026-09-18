@@ -98,7 +98,8 @@ class PostgresRecordRepository:
         with self._using_connection() as conn:
             rows = conn.execute(
                 "SELECT id FROM ai_records "
-                "WHERE kind IN ('chat','run') AND data->>'status' IN ('queued','running')"
+                "WHERE (kind IN ('chat','run') AND data->>'status' IN ('queued','running')) "
+                "OR (kind='content_insight_artifact' AND data->>'status' IN ('QUEUED','RUNNING'))"
             ).fetchall()
         return [row["id"] for row in rows]
 

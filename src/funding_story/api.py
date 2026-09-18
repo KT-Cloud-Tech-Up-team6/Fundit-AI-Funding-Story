@@ -1,10 +1,8 @@
 import asyncio
 import json
-import secrets
 from contextlib import asynccontextmanager
-from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from . import assets
@@ -15,7 +13,7 @@ from .application import (
     ExportRenderingFailed,
 )
 from .bootstrap import application, close_pools, open_pools
-from .config import settings
+from .content_insights.api import router as content_insights_router
 from .models import (
     ConfirmRequest,
     ExportCommitRequest,
@@ -27,6 +25,7 @@ from .models import (
 )
 from .observability import emit
 from .renderer import render_scene
+from .security import Project
 from .tasks import execute
 
 
@@ -39,23 +38,8 @@ async def lifespan(app):
         close_pools()
 
 
-app = FastAPI(title="Fundit Funding Story AI", version="0.2.0", lifespan=lifespan)
-
-
-def authorize(
-    authorization: Annotated[str | None, Header()] = None,
-    x_project_id: Annotated[str | None, Header()] = None,
-):
-    if not authorization or not secrets.compare_digest(
-        authorization, "Bearer " + settings().ai_service_token
-    ):
-        raise HTTPException(401, "내부 서비스 인증이 필요합니다.")
-    if not x_project_id:
-        raise HTTPException(400, "프로젝트 범위가 필요합니다.")
-    return x_project_id
-
-
-Project = Annotated[str, Depends(authorize)]
+app = FastAPI(title="Fundit Funding Story AI", version="0.3.0", lifespan=lifespan)
+app.include_router(content_insights_router)
 
 
 @app.exception_handler(LookupError)

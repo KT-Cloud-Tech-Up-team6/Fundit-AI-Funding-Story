@@ -24,6 +24,8 @@ Linux에서는 Chromium 설치에 `--with-deps`를 추가한다. 폰트는 Prete
 | `DB_CHECKPOINT_POOL_MAX_SIZE` | LangGraph checkpoint 전용 pool 최대값 |
 | `DATABASE_URL` | 한 배포 주기 동안만 유지하는 호환 override; 신규 설정에는 사용하지 않음 |
 | `CELERY_BROKER_URL` | 작업 전달용 Redis |
+| `CONTENT_INSIGHTS_PAGE_SUMMARY_QUEUE` | 필수 페이지 요약 전용 Celery queue |
+| `CONTENT_INSIGHTS_STORYLINE_QUEUE` | 스토리라인 전용 Celery queue |
 | `AI_SERVICE_TOKEN` | BE → AI 내부 인증, 운영 비밀 관리 필요 |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Google 모델 프로젝트·위치 |
 | `TEXT_MODEL`, `IMAGE_MODEL` | 텍스트·이미지 모델 |
@@ -60,15 +62,17 @@ uv run python scripts/baseline_existing_db.py --apply
 
 ## 프로세스
 
-API, worker, beat를 각각 실행한다. 세 프로세스가 동일한 `.env`와 DB·스토리지를 사용해야 한다.
+API, worker, beat를 각각 실행한다. 모든 프로세스가 동일한 `.env`와 DB·스토리지를 사용해야 한다. Content Insights의 필수 작업이 선택적 이미지 생성 부하에 밀리지 않도록 queue subscription을 분리한다.
 
 ```sh
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO
+uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q celery
+uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q content-insights.page-summary
+uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q content-insights.storyline
 uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
 ```
 
-`GET /health`는 상태 확인용이며 `/v1` 요청에는 내부 인증과 프로젝트 ID가 필요하다. OpenAPI UI는 `/docs`다. `solo`는 macOS 로컬용이며 운영 동시성은 별도로 정한다. 스케줄러는 중복 기동하지 않는다.
+`GET /health`는 상태 확인용이며 `/v1` 요청에는 내부 인증과 프로젝트 ID가 필요하다. OpenAPI UI는 `/docs`다. `solo`는 macOS 로컬용이며 운영 동시성은 별도로 정한다. 스케줄러는 중복 기동하지 않는다. 단일 로컬 worker가 필요하면 `-Q celery,content-insights.page-summary,content-insights.storyline`을 사용할 수 있지만 운영 격리 구성이 아니다. Content Insights smoke test와 복구 절차는 [운영·연동 안내](content-insights-operations.md)를 따른다.
 
 ## 테스트와 패키징
 

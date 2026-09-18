@@ -15,6 +15,8 @@
 
 Funding Story AI는 Fundit의 내부 AI API입니다. 등록된 제품 정보와 사용자 대화를 바탕으로 추가 정보를 수집하고 요약·핵심 강점을 확인받습니다. 비동기 작업이 디자인 템플릿에 문구와 이미지를 채우며, 최종 결과는 순서가 있는 PNG 자산과 프로젝트 정보 텍스트입니다.
 
+선택적인 Funding Story 작성 흐름과 별개로 Content Insights API도 제공합니다. Project Service의 정규 snapshot에서 필수 페이지 요약과 필수 스토리라인 artifact를 각각 생성·저장·재시도합니다. Storyline v2는 내부 의미 구분명을 화면에 노출하지 않고 두 개의 헤드라인·상세 설명 블록을 반환합니다.
+
 이 저장소는 AI API·워커·템플릿·테스트·호출 계약을 포함합니다. FE 화면, BE 프로젝트 권한·영구 본문 저장·게시는 각 팀의 서비스가 담당합니다.
 
 ## 주요 기능
@@ -41,6 +43,13 @@ Funding Story AI는 Fundit의 내부 AI API입니다. 등록된 제품 정보와
 - 예산·일정·팀·정책·예상 어려움은 일반 텍스트로 반환합니다. 선물 상세 설명은 제외합니다.
 - BE 저장 확인 후 임시 디자인을 정리합니다. 저장된 PNG의 디자인 재편집 기능은 제공하지 않습니다.
 
+### Content Insights
+
+- Funding Story 세션이나 export 없이 `PAGE_SUMMARY`를 생성합니다.
+- 하나의 parent 요청 안에서 `PAGE_SUMMARY`와 `STORYLINE`을 독립 작업으로 실행합니다.
+- policy v2는 페이지 요약과 스토리라인을 모두 등록 필수 결과로 판정하며 두 결과가 성공해야 readiness를 충족합니다.
+- artifact별 queue·prompt version·오류·재시도와 project source revision을 보존합니다.
+
 ## 🚀 빠른 시작
 
 Python 3.12.14, uv, Docker Compose가 필요합니다. 실제 모델 호출에는 Google Cloud ADC와 모델 접근 권한이 필요하며 비용이 발생합니다. 저장소 루트에서 실행합니다.
@@ -65,7 +74,9 @@ Compose는 호스트 `5440`의 AI 전용 PostgreSQL, Redis, 일회성 Flyway mig
 
 ```bash
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO
+uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q celery
+uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q content-insights.page-summary
+uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q content-insights.storyline
 uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
 ```
 
@@ -93,13 +104,13 @@ Python 3.12 / uv / FastAPI / LangGraph / Celery / PostgreSQL / Redis / Google Ge
 
 **FE → BE → AI** 경로로 호출합니다. BE가 소유권을 확인한 후 내부 Bearer 토큰과 `X-Project-Id`를 전달합니다. 브라우저에 AI 내부 토큰을 노출하지 않습니다.
 
-업로드 → 세션·대화 → 요약 확인 → 생성·조회·재시도 → PNG export → BE 저장 → commit 순서입니다. [API 계약](../docs/architecture.md)과 [OpenAPI](../docs/openapi.json)에 상세 필드가 있습니다.
+선택적 작성은 업로드 → 세션·대화 → 입력 확인 → 생성·조회·재시도 → PNG export → BE 저장 → commit 순서입니다. 필수 요약은 프로젝트 snapshot → Content Insights run → artifact 조회 → BE canonical 저장 순서입니다. Backend·FE 구현은 이 저장소의 배포 범위에 포함하지 않습니다. [API 계약](../docs/architecture.md), [Content Insights 통합 인터페이스](../docs/content-insights-integration-interface.md), [OpenAPI](../docs/openapi.json)에 상세 필드가 있습니다.
 
 ## 반환 결과
 
 - 블록별 PNG 자산 ID·순서·크기·대체 텍스트
 - 프로젝트 정보 텍스트와 공통 안내 key
-- 후속 AI용 `project_summary.summary`와 `storyline`
+- 작성 흐름 호환용 `project_summary.summary`와 `storyline`; 공개 canonical 요약은 Content Insights 결과
 - BE 저장 확인용 export ID·원본 revision
 
 [반환 예시](../docs/examples/export-result.json)를 참고하세요. 3종 선물 디자인에서 미등록 카드는 입력 대기로 유지하며 선물·가격을 지어내지 않습니다.
@@ -114,13 +125,17 @@ uv build
 
 테스트는 Testcontainers가 매 실행마다 만드는 PostgreSQL 17에 운영과 같은 Flyway migration을 적용하고, 모델 호출은 mock하며 렌더링에는 실제 Chromium을 사용합니다. 테스트 자료는 [가상 제품 입력](../tests/fixtures/appliance.json)과 [참고 이미지](../tests/fixtures/original.png)입니다.
 
-로컬 자동 테스트 55개와 실제 14블록 생성·출력을 확인했습니다. application 계층 테스트는 in-memory repository로 Docker/DB 없이 실행되고, DB 통합 테스트는 격리된 PostgreSQL 17 컨테이너를 사용합니다. 생성 이미지의 제품 세부 형상 차이는 남습니다. 운영 배포·타팀 게시 연동 완료를 의미하지 않습니다.
+로컬 자동 테스트 77개와 실제 14블록 생성·출력을 확인했습니다. application 계층 테스트는 in-memory repository로 Docker/DB 없이 실행되고, DB 통합 테스트는 격리된 PostgreSQL 17 컨테이너를 사용합니다. 생성 이미지의 제품 세부 형상 차이는 남습니다. 운영 배포와 Content Insights 실제 모델 품질 승인은 아직 완료로 보지 않습니다.
 
 ## 관련 문서
 
 - [개발·환경설정](../docs/development.md)
 - [실행·API 계약](../docs/architecture.md)
 - [프론트 호출 대응](../docs/frontend-call-contract.md)
+- [Content Insights API 설계](../docs/content-insights-api-design.md)
+- [Content Insights 통합 인터페이스](../docs/content-insights-integration-interface.md)
+- [Content Insights 운영·연동](../docs/content-insights-operations.md)
+- [Content Insights 작업 체크리스트](../docs/content-insights-implementation-checklist.md)
 - [팀별 인계](../docs/team-handoff.md)
 - [검증 범위](../docs/validation.md)
 - [외부 라이브러리 고지](../THIRD_PARTY_NOTICES.md)

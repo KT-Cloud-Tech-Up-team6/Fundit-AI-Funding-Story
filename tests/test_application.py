@@ -73,7 +73,14 @@ class FakeRecordRepository:
         return [
             row["id"]
             for row in self.records.values()
-            if row["kind"] in ("chat", "run") and row["data"].get("status") in ("queued", "running")
+            if (
+                row["kind"] in ("chat", "run")
+                and row["data"].get("status") in ("queued", "running")
+            )
+            or (
+                row["kind"] == "content_insight_artifact"
+                and row["data"].get("status") in ("QUEUED", "RUNNING")
+            )
         ]
 
     def delete_run_checkpoints(self, run_id):

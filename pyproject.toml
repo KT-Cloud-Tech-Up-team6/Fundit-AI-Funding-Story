@@ -1,6 +1,6 @@
 [project]
 name = "fundit-ai-funding-story"
-version = "0.2.0"
+version = "0.3.0"
 description = "Funding Story AI API and durable generation worker"
 requires-python = ">=3.12,<3.13"
 dependencies = [

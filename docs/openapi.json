@@ -2,9 +2,293 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Fundit Funding Story AI",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "paths": {
+    "/v1/content-insight-runs": {
+      "post": {
+        "tags": [
+          "content-insights"
+        ],
+        "summary": "Create Content Insight Run",
+        "operationId": "create_content_insight_run_v1_content_insight_runs_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-project-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInsightCreateRequest"
+              },
+              "examples": {
+                "registration": {
+                  "summary": "등록 완료 생성",
+                  "value": {
+                    "source_revision": 42,
+                    "idempotency_key": "11111111-1111-1111-1111-111111111111:content-insights:42",
+                    "trigger": "PROJECT_REGISTRATION_COMPLETED",
+                    "requested_artifacts": [
+                      "PAGE_SUMMARY",
+                      "STORYLINE"
+                    ],
+                    "project_snapshot": {
+                      "title": "LUMI S1",
+                      "category": "테크·가전",
+                      "description": "약 1.3kg 본체를 갖춘 무선 청소기입니다.",
+                      "rewards": [
+                        {
+                          "name": "얼리버드",
+                          "description": "본체와 틈새 노즐 구성",
+                          "price": 129000
+                        }
+                      ],
+                      "story_content": [
+                        {
+                          "type": "TEXT",
+                          "value": "좁은 공간의 청소 부담을 줄이기 위해 준비했습니다."
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "독립 artifact 작업이 접수됨",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentInsightRunResponse"
+                },
+                "example": {
+                  "run_id": "22222222-2222-2222-2222-222222222222",
+                  "revision": 1,
+                  "status": "QUEUED",
+                  "source_revision": 42,
+                  "required_artifacts_ready": false,
+                  "artifacts": {
+                    "PAGE_SUMMARY": {
+                      "artifact_id": "33333333-3333-3333-3333-333333333333",
+                      "status": "QUEUED",
+                      "required": true,
+                      "attempts": 0
+                    },
+                    "STORYLINE": {
+                      "artifact_id": "44444444-4444-4444-4444-444444444444",
+                      "status": "QUEUED",
+                      "required": true,
+                      "attempts": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/content-insight-runs/{run_id}": {
+      "get": {
+        "tags": [
+          "content-insights"
+        ],
+        "summary": "Get Content Insight Run",
+        "operationId": "get_content_insight_run_v1_content_insight_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-project-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentInsightRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry": {
+      "post": {
+        "tags": [
+          "content-insights"
+        ],
+        "summary": "Retry Content Insight Artifact",
+        "operationId": "retry_content_insight_artifact_v1_content_insight_runs__run_id__artifacts__artifact_type__retry_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "artifact_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ArtifactType"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-project-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentInsightRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -1259,6 +1543,182 @@
   },
   "components": {
     "schemas": {
+      "ArtifactError": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "retryable"
+        ],
+        "title": "ArtifactError"
+      },
+      "ArtifactOutput": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "sections": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StorylineSection"
+                },
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sections"
+          },
+          "source_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Source Fields"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ArtifactOutput"
+      },
+      "ArtifactStatus": {
+        "type": "string",
+        "enum": [
+          "NOT_REQUESTED",
+          "QUEUED",
+          "RUNNING",
+          "SUCCEEDED",
+          "FAILED",
+          "STALE"
+        ],
+        "title": "ArtifactStatus"
+      },
+      "ArtifactType": {
+        "type": "string",
+        "enum": [
+          "PAGE_SUMMARY",
+          "STORYLINE"
+        ],
+        "title": "ArtifactType"
+      },
+      "ArtifactView": {
+        "properties": {
+          "artifact_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArtifactStatus"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "default": 0
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArtifactOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArtifactError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "required"
+        ],
+        "title": "ArtifactView"
+      },
       "Body_upload_v1_assets_post": {
         "properties": {
           "file": {
@@ -1287,6 +1747,99 @@
           "revision"
         ],
         "title": "ConfirmRequest"
+      },
+      "ContentInsightCreateRequest": {
+        "properties": {
+          "source_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Source Revision"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Idempotency Key"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/ContentInsightTrigger"
+          },
+          "requested_artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactType"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "title": "Requested Artifacts"
+          },
+          "project_snapshot": {
+            "$ref": "#/components/schemas/ProjectSnapshot"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_revision",
+          "idempotency_key",
+          "trigger",
+          "project_snapshot"
+        ],
+        "title": "ContentInsightCreateRequest"
+      },
+      "ContentInsightRunResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Revision"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "source_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Source Revision"
+          },
+          "required_artifacts_ready": {
+            "type": "boolean",
+            "title": "Required Artifacts Ready"
+          },
+          "artifacts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ArtifactView"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/ArtifactType"
+            },
+            "type": "object",
+            "title": "Artifacts"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "revision",
+          "status",
+          "source_revision",
+          "required_artifacts_ready",
+          "artifacts"
+        ],
+        "title": "ContentInsightRunResponse"
+      },
+      "ContentInsightTrigger": {
+        "type": "string",
+        "enum": [
+          "PROJECT_REGISTRATION_COMPLETED",
+          "PROJECT_CONTENT_UPDATED",
+          "STORY_CONFIRMED"
+        ],
+        "title": "ContentInsightTrigger"
       },
       "ExportCommitRequest": {
         "properties": {
@@ -1556,6 +2109,28 @@
         ],
         "title": "MessageRequest"
       },
+      "ProjectContentBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "TEXT",
+            "title": "Type"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "value"
+        ],
+        "title": "ProjectContentBlock"
+      },
       "ProjectInput": {
         "properties": {
           "category": {
@@ -1630,6 +2205,84 @@
           "title"
         ],
         "title": "ProjectInput"
+      },
+      "ProjectReward": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000,
+            "title": "Description",
+            "default": ""
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectReward"
+      },
+      "ProjectSnapshot": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Category",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Description",
+            "default": ""
+          },
+          "rewards": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectReward"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Rewards"
+          },
+          "story_content": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectContentBlock"
+            },
+            "type": "array",
+            "maxItems": 300,
+            "title": "Story Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "ProjectSnapshot"
       },
       "ProjectSummary": {
         "properties": {
@@ -1724,6 +2377,53 @@
           "idempotency_key"
         ],
         "title": "RunRequest"
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "QUEUED",
+          "RUNNING",
+          "SUCCEEDED",
+          "PARTIALLY_SUCCEEDED",
+          "FAILED",
+          "STALE"
+        ],
+        "title": "RunStatus"
+      },
+      "StorylineSection": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/StorylineSectionRole"
+          },
+          "headline": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Headline"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 2,
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "headline",
+          "description"
+        ],
+        "title": "StorylineSection"
+      },
+      "StorylineSectionRole": {
+        "type": "string",
+        "enum": [
+          "REWARD_IDENTITY",
+          "PROJECT_REASON"
+        ],
+        "title": "StorylineSectionRole"
       },
       "ValidationError": {
         "properties": {

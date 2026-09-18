@@ -7,8 +7,16 @@ from langgraph.graph import END, START, StateGraph
 from langsmith import Client, tracing_context
 
 from . import assets, provider
-from .bootstrap import application, close_pools, new_checkpointer, open_pools
+from .bootstrap import (
+    application,
+    close_pools,
+    content_insights_application,
+    new_checkpointer,
+    open_pools,
+)
 from .config import settings
+from .content_insights.models import ArtifactType
+from .content_insights.worker import execute_artifact
 from .graph import generate_checked
 from .intake import apply_changes, parse_initial_review, parse_review
 from .models import CopyResult, ProjectInput, Review, output_information
@@ -90,7 +98,32 @@ reply는 실제 창작자와 대화하는 자연스러운 한국어로 작성하
 def dispatch():
     # Durable outbox: accepted rows survive a broker outage. Advisory locks suppress duplicate deliveries.
     for record_id in records.pending_job_ids():
-        execute.delay(record_id)
+        row = records.get(record_id)
+        if row["kind"] == "content_insight_artifact":
+            enqueue_content_insight(record_id, ArtifactType(row["data"]["artifact_type"]))
+        else:
+            execute.delay(record_id)
+
+
+def content_insight_queue(artifact_type: ArtifactType) -> str:
+    cfg = settings()
+    return (
+        cfg.content_insights_page_summary_queue
+        if artifact_type == ArtifactType.PAGE_SUMMARY
+        else cfg.content_insights_storyline_queue
+    )
+
+
+def enqueue_content_insight(artifact_id: str, artifact_type: ArtifactType) -> None:
+    execute_content_insight.apply_async(
+        args=[artifact_id],
+        queue=content_insight_queue(artifact_type),
+    )
+
+
+@celery.task(name="funding.content_insights.execute")
+def execute_content_insight(artifact_id):
+    execute_artifact(content_insights_application, artifact_id)
 
 
 @celery.task(name="funding.execute")
@@ -109,8 +142,10 @@ def execute(rid):
             ):
                 if row["kind"] == "chat":
                     chat(row)
-                else:
+                elif row["kind"] == "run":
                     generate(row)
+                else:
+                    raise ValueError("지원하지 않는 작업 종류입니다.")
         except Exception as exc:  # noqa: BLE001 - persist terminal job/slot state for recovery
             records.fail_job(rid, exc)
             emit("job_failed", run_id=rid, error_type=type(exc).__name__)

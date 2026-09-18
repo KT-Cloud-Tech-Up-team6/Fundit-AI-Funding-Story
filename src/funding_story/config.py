@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     db_pool_max_lifetime_seconds: float = Field(default=1800, gt=0)
     db_checkpoint_pool_max_size: int = Field(default=3, ge=1)
     celery_broker_url: str = "redis://localhost:56379/0"
+    content_insights_page_summary_queue: str = "content-insights.page-summary"
+    content_insights_storyline_queue: str = "content-insights.storyline"
     ai_service_token: str
     google_cloud_project: str = ""
     google_cloud_location: str = "global"
