@@ -15,9 +15,8 @@ def plan(project: ProjectInput, review: Review):
         len(review.problems) != 4
         or not COMPOSITION["point_min"] <= len(review.strengths) <= COMPOSITION["point_max"]
         or not project.rewards
-        or not project.asset_ids
     ):
-        raise ValueError("불편한 상황 4개, 핵심 강점 3개 이상, 선물과 제품 이미지를 확인해 주세요.")
+        raise ValueError("불편한 상황 4개, 핵심 강점 3개 이상과 리워드를 확인해 주세요.")
     blocks = [copy.deepcopy(CATALOG[key]) for key in COMPOSITION["required_before_points"]]
     for index, strength in enumerate(review.strengths):
         desc = strength.title + strength.description
@@ -45,13 +44,11 @@ def plan(project: ProjectInput, review: Review):
                 node["text"] = f"Point {index + 1:02d}"
         blocks.append(block)
     blocks.extend(copy.deepcopy(CATALOG[key]) for key in COMPOSITION["required_after_points"])
-    if review.include_information:
-        blocks.append(copy.deepcopy(CATALOG[COMPOSITION["optional_information"]]))
     fixed = {
         n["id"]: n["text"]
         for b in blocks
         for n in b["nodes"]
-        if n["kind"] == "text" and (n["text"] in ("×", "✓") or n["id"] == "information.title")
+        if n["kind"] == "text" and n["text"] in ("×", "✓")
     }
     for i in range(3):
         fixed[f"hero.point-{i}"] = f"Point {i + 1:02d}"
@@ -61,11 +58,9 @@ def plan(project: ProjectInput, review: Review):
         reward = project.rewards[i] if i < len(project.rewards) else None
         for role, value in {
             "name": reward.name if reward else "미등록 선물",
-            "normal-label": "정상가",
-            "sale-label": "할인가",
-            "normal-price": f"{reward.normal_price:,}원"
-            if reward and reward.normal_price is not None
-            else "—",
+            "normal-label": "",
+            "sale-label": "가격",
+            "normal-price": "",
             "sale-price": f"{reward.price:,}원" if reward else "—",
         }.items():
             fixed[f"rewards.{role}-{i}"] = value

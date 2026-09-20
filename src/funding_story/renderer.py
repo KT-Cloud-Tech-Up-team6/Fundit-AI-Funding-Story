@@ -9,7 +9,6 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-from . import assets
 from .config import settings
 
 RESOURCES = Path(__file__).parent / "resources"
@@ -101,19 +100,23 @@ def measure_scene(scene):
         return page.evaluate("scene => measureScene(scene)", _prepared(scene))
 
 
-def render_scene(scene, project):
+def render_scene(scene, sources, block_ids=None):
     scene = _prepared(scene)
-    sources = {}
+    encoded_sources = {}
     for block in scene["blocks"]:
         for node in block["nodes"]:
             aid = node.get("assetId")
-            if node["kind"] == "image" and aid and not node.get("pending") and aid not in sources:
-                blob, mime = assets.read(aid, project)
-                sources[aid] = "data:" + mime + ";base64," + base64.b64encode(blob).decode()
+            if node["kind"] == "image" and aid and not node.get("pending") and aid not in encoded_sources:
+                blob, mime = sources[aid]
+                encoded_sources[aid] = (
+                    "data:" + mime + ";base64," + base64.b64encode(blob).decode()
+                )
     results = []
     with browser_page() as page:
-        page.evaluate("sources => {window.sceneSources = sources;}", sources)
+        page.evaluate("sources => {window.sceneSources = sources;}", encoded_sources)
         for block in scene["blocks"]:
+            if block_ids is not None and block["id"] not in block_ids:
+                continue
             result = page.evaluate("async block => renderBlock(block,window.sceneSources)", block)
             results.append(
                 {

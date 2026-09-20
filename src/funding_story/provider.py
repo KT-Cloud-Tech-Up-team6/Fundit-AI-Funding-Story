@@ -2,7 +2,6 @@ import time
 
 from google import genai
 from google.genai import types
-from langsmith import traceable
 
 from .config import settings
 from .observability import emit
@@ -31,7 +30,6 @@ def transient_call(fn, *, sleeper=time.sleep):
             sleeper(delay)
 
 
-@traceable(name="model.structured", run_type="llm", process_inputs=lambda _: {})
 def structured(prompt, schema, references=()):
     with client() as api:
         res = transient_call(
@@ -93,9 +91,6 @@ def chat_stream(prompt):
     yield from stream_with_retry(chunks)
 
 
-@traceable(
-    name="model.image", process_inputs=lambda _: {}, process_outputs=lambda _: {"image": "stored separately"}
-)
 def image(prompt, references):
     parts = [
         types.Part.from_text(
