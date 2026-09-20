@@ -5,14 +5,11 @@ shell so a local, shared or production database can never be selected accidental
 """
 
 import os
-import shutil
-import tempfile
 
 import pytest
 
 os.environ["APP_ENV"] = "test"
 os.environ["AI_SERVICE_TOKEN"] = "test-only"
-os.environ["LANGSMITH_TRACING"] = "false"
 os.environ.setdefault("RYUK_CONTAINER_IMAGE", "testcontainers/ryuk:0.14.0")
 os.environ.pop("DATABASE_URL", None)
 os.environ.pop("TEST_DATABASE_URL", None)
@@ -22,8 +19,6 @@ os.environ.pop("TEST_DATABASE_URL", None)
 def postgres_container():
     from testcontainers.community.postgres import PostgresContainer
 
-    storage_dir = tempfile.mkdtemp(prefix="funding-story-test-assets-")
-    os.environ["STORAGE_DIR"] = storage_dir
     postgres = PostgresContainer(
         "postgres:17",
         username="funding_ai",
@@ -48,7 +43,4 @@ def postgres_container():
         from funding_story.infrastructure.persistence import close_pools
 
         close_pools()
-        try:
-            postgres.stop()
-        finally:
-            shutil.rmtree(storage_dir, ignore_errors=True)
+        postgres.stop()

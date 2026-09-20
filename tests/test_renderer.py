@@ -49,7 +49,7 @@ def test_konva_exports_real_png_at_template_size():
     block = promise()
     node = next(n for n in block["nodes"] if n["id"] == "promise.title-emphasis")
     node["text"] = "1.35kg"
-    result = render_scene(scene(block), "unused-without-images")[0]
+    result = render_scene(scene(block), {})[0]
     image = Image.open(io.BytesIO(result["bytes"]))
     assert image.size == (860, 1724)
     assert image.getbbox()

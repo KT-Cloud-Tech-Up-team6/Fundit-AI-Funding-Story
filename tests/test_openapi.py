@@ -9,7 +9,7 @@ def test_checked_in_openapi_matches_application():
 
 
 def test_content_insight_openapi_contains_request_and_response_examples():
-    operation = app.openapi()["paths"]["/v1/content-insight-runs"]["post"]
+    operation = app.openapi()["paths"]["/api/v1/ai/content-insight-runs"]["post"]
     request = operation["requestBody"]["content"]["application/json"]
     response = operation["responses"]["202"]["content"]["application/json"]
 

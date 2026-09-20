@@ -6,21 +6,17 @@ from funding_story.content_insights.models import ArtifactType
 
 
 def test_dispatch_routes_artifacts_to_dedicated_queues(monkeypatch):
-    rows = {
-        "page": {
-            "kind": "content_insight_artifact",
-            "data": {"artifact_type": "PAGE_SUMMARY"},
-        },
-        "storyline": {
-            "kind": "content_insight_artifact",
-            "data": {"artifact_type": "STORYLINE"},
-        },
-        "authoring": {"kind": "run", "data": {"status": "queued"}},
-    }
     artifact_calls = []
     authoring_calls = []
-    monkeypatch.setattr(tasks.records, "pending_job_ids", lambda: list(rows))
-    monkeypatch.setattr(tasks.records, "get", lambda record_id: rows[record_id])
+    monkeypatch.setattr(tasks.application, "pending_job_ids", lambda: ["authoring"])
+    monkeypatch.setattr(
+        tasks.content_insights_application,
+        "pending_artifacts",
+        lambda: [
+            ("page", ArtifactType.PAGE_SUMMARY),
+            ("storyline", ArtifactType.STORYLINE),
+        ],
+    )
     monkeypatch.setattr(
         tasks,
         "enqueue_content_insight",
