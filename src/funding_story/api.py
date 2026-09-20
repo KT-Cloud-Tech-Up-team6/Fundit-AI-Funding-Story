@@ -2,29 +2,28 @@ import asyncio
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, StreamingResponse
 
-from . import assets
-from .application import (
-    ApplicationConflict,
-    ApplicationGone,
-    ApplicationInvalid,
-    ExportRenderingFailed,
-)
+from .application import ApplicationConflict, ApplicationInvalid
 from .bootstrap import application, close_pools, open_pools
 from .content_insights.api import router as content_insights_router
+from .http_contract import API_PREFIX
 from .models import (
+    ChatAcceptedResponse,
+    ChatDoneEvent,
     ConfirmRequest,
-    ExportCommitRequest,
-    ExportRequest,
-    ExportResult,
+    ConfirmResponse,
+    ErrorResponse,
+    LatestSessionResponse,
     MessageRequest,
-    ProjectInput,
+    RunAcceptedResponse,
     RunRequest,
+    SessionCreateRequest,
+    SessionResponse,
 )
 from .observability import emit
-from .renderer import render_scene
 from .security import Project
 from .tasks import execute
 
@@ -38,40 +37,60 @@ async def lifespan(app):
         close_pools()
 
 
-app = FastAPI(title="Fundit Funding Story AI", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Fundit Funding Story AI", version="1.0.0", lifespan=lifespan)
 app.include_router(content_insights_router)
 
 
+def error(status_code: int, code: str, message: str, detail=None) -> JSONResponse:
+    body = ErrorResponse(code=code, message=message, detail=detail)
+    return JSONResponse(status_code=status_code, content=body.model_dump(mode="json"))
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    details = [
+        {key: value for key, value in item.items() if key in ("type", "loc", "msg")}
+        for item in exc.errors()
+    ]
+    return error(400, "INVALID_INPUT", "요청 형식이 올바르지 않습니다.", details)
+
+
 @app.exception_handler(LookupError)
-async def not_found(request, exc):
-    return Response('{"detail":"대상을 찾을 수 없습니다."}', 404, media_type="application/json")
+async def not_found(request: Request, exc: LookupError):
+    return error(404, "NOT_FOUND", "대상을 찾을 수 없습니다.")
 
 
 @app.exception_handler(ApplicationConflict)
-async def conflict(request, exc):
-    return JSONResponse({"detail": str(exc)}, 409)
+async def conflict(request: Request, exc: ApplicationConflict):
+    return error(409, "CONFLICT", str(exc))
 
 
 @app.exception_handler(ApplicationInvalid)
-async def invalid(request, exc):
-    return JSONResponse({"detail": str(exc)}, 422)
+async def invalid(request: Request, exc: ApplicationInvalid):
+    return error(422, "NOT_READY_TO_GENERATE", str(exc))
 
 
-@app.exception_handler(ApplicationGone)
-async def gone(request, exc):
-    return JSONResponse({"detail": str(exc)}, 410)
+@app.exception_handler(HTTPException)
+async def http_error(request: Request, exc: HTTPException):
+    codes = {
+        400: "INVALID_INPUT",
+        401: "UNAUTHORIZED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        409: "CONFLICT",
+        422: "INVALID_PROJECT_DATA",
+        429: "TOO_MANY_REQUESTS",
+        503: "DEPENDENCY_FAILURE",
+    }
+    message = exc.detail if isinstance(exc.detail, str) else "요청을 처리할 수 없습니다."
+    return error(exc.status_code, codes.get(exc.status_code, "INTERNAL_ERROR"), message)
 
 
-@app.exception_handler(ExportRenderingFailed)
-async def export_failed(request, exc):
-    return JSONResponse({"detail": str(exc)}, 422)
-
-
-def kick(rid):
+def kick(record_id: str) -> None:
     try:
-        execute.delay(rid)
-    except Exception:  # noqa: BLE001 - persist broker delivery for outbox recovery
-        emit("outbox_waiting", run_id=rid)
+        execute.delay(record_id)
+    except Exception:  # noqa: BLE001 - TTL pending set supports worker redispatch
+        emit("outbox_waiting", run_id=record_id)
 
 
 @app.get("/health")
@@ -87,84 +106,77 @@ def ready():
     return {"status": "ready"}
 
 
-@app.post("/v1/assets", status_code=201)
-def upload(project: Project, file: UploadFile):
-    try:
-        return {"asset_id": assets.put(project, file.file.read(20 * 1024 * 1024 + 1))}
-    except ValueError as exc:
-        raise HTTPException(422, str(exc))
+@app.post(
+    API_PREFIX + "/sessions",
+    status_code=201,
+    response_model=SessionResponse,
+    responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
+)
+def create_session(body: SessionCreateRequest, project: Project):
+    return application.create_session(project, body)
 
 
-@app.get("/v1/assets/{aid}")
-def download(aid: str, project: Project):
-    data, mime = assets.read(aid, project)
-    return Response(data, media_type=mime, headers={"Cache-Control": "private, max-age=300"})
-
-
-@app.get("/v1/assets/{aid}/metadata")
-def asset_metadata(aid: str, project: Project):
-    row = application.get(aid, project, kind="asset")
-    return {"asset_id": aid, "mime": row["data"]["mime"], "size": row["data"]["size"]}
-
-
-@app.post("/v1/assets/import", status_code=201)
-def import_asset(body: dict[str, str], project: Project):
-    try:
-        return {"asset_id": assets.import_s3(project, body.get("key", ""))}
-    except ValueError as exc:
-        raise HTTPException(422, str(exc))
-
-
-@app.post("/v1/sessions", status_code=201)
-def session(body: ProjectInput, project: Project):
-    return application.create_session(project, body, assets.read)
-
-
-@app.get("/v1/sessions/latest")
+@app.get(API_PREFIX + "/sessions/latest", response_model=LatestSessionResponse)
 def latest_session(project: Project):
     return {"session": application.latest_session(project)}
 
 
-@app.get("/v1/sessions/{sid}")
-def session_get(sid: str, project: Project):
-    return application.get_session(sid, project)
+@app.get(API_PREFIX + "/sessions/{session_id}", response_model=SessionResponse)
+def get_session(session_id: str, project: Project):
+    return application.get_session(session_id, project)
 
 
-@app.post("/v1/sessions/{sid}/start", status_code=202)
-def session_start(sid: str, project: Project):
-    """Let the assistant read registered project context and lead the first turn."""
-    result, should_dispatch = application.start_session(sid, project)
+@app.post(
+    API_PREFIX + "/sessions/{session_id}/start",
+    status_code=202,
+    response_model=ChatAcceptedResponse,
+)
+def start_session(session_id: str, project: Project):
+    result, should_dispatch = application.start_session(session_id, project)
     if should_dispatch:
-        kick(result["id"])
+        kick(result["chat_id"])
     return result
 
 
-@app.post("/v1/sessions/{sid}/messages", status_code=202)
-def message(sid: str, body: MessageRequest, project: Project):
-    result, should_dispatch = application.add_message(sid, body, project, assets.read)
+@app.post(
+    API_PREFIX + "/sessions/{session_id}/messages",
+    status_code=202,
+    response_model=ChatAcceptedResponse,
+)
+def add_message(session_id: str, body: MessageRequest, project: Project):
+    result, should_dispatch = application.add_message(session_id, body, project)
     if should_dispatch:
-        kick(result["id"])
+        kick(result["chat_id"])
     return result
 
 
-@app.get("/v1/chats/{rid}/events")
-def events(rid: str, project: Project):
-    application.get_chat(rid, project)
+@app.get(API_PREFIX + "/chats/{chat_id}/events")
+def chat_events(chat_id: str, project: Project):
+    application.get_chat(chat_id, project)
 
     async def stream():
         previous = ""
         for _ in range(600):
-            result = await asyncio.to_thread(application.get_chat, rid, project)
+            result = await asyncio.to_thread(application.get_chat, chat_id, project)
             reply = result.get("reply", "")
             if reply != previous:
                 yield (
                     "event: message\ndata: "
-                    + json.dumps({"id": rid, "text": reply}, ensure_ascii=False)
+                    + json.dumps({"chat_id": chat_id, "text": reply}, ensure_ascii=False)
                     + "\n\n"
                 )
                 previous = reply
             if result["status"] not in ("queued", "running"):
-                yield "event: done\ndata: " + json.dumps(result, ensure_ascii=False) + "\n\n"
+                done = ChatDoneEvent.model_validate(
+                    {
+                        "chat_id": chat_id,
+                        "status": result["status"],
+                        "session_id": result["session_id"],
+                        "revision": result["revision"],
+                        "error": result["error"],
+                    }
+                )
+                yield "event: done\ndata: " + done.model_dump_json() + "\n\n"
                 return
             yield ": heartbeat\n\n"
             await asyncio.sleep(0.5)
@@ -176,44 +188,21 @@ def events(rid: str, project: Project):
     )
 
 
-@app.post("/v1/sessions/{sid}/confirm")
-def confirm(sid: str, body: ConfirmRequest, project: Project):
-    return application.confirm_session(sid, body, project)
+@app.post(
+    API_PREFIX + "/sessions/{session_id}/confirm",
+    response_model=ConfirmResponse,
+)
+def confirm_session(session_id: str, body: ConfirmRequest, project: Project):
+    return application.confirm_session(session_id, body, project)
 
 
-@app.post("/v1/runs", status_code=202)
-def run(body: RunRequest, project: Project):
+@app.post(
+    API_PREFIX + "/runs",
+    status_code=202,
+    response_model=RunAcceptedResponse,
+)
+def create_run(body: RunRequest, project: Project):
     result, should_dispatch = application.create_run(body, project)
     if should_dispatch:
-        kick(result["id"])
-    return result
-
-
-@app.get("/v1/runs/{rid}")
-def get_run(rid: str, project: Project):
-    return application.get_run(rid, project)
-
-
-@app.post("/v1/runs/{rid}/retry", status_code=202)
-def retry(rid: str, project: Project):
-    result = application.retry_run(rid, project)
-    kick(rid)
-    return result
-
-
-@app.post("/v1/runs/{rid}/exports", status_code=201, response_model=ExportResult)
-def export_run(rid: str, body: ExportRequest, project: Project):
-    return application.export_run(rid, body, project, render_scene, assets.put)
-
-
-@app.get("/v1/exports/{eid}", response_model=ExportResult)
-def get_export(eid: str, project: Project):
-    return application.get_export(eid, project)
-
-
-@app.post("/v1/exports/{eid}/commit", response_model=ExportResult)
-def commit_export(eid: str, body: ExportCommitRequest, project: Project):
-    result, cleanup_error = application.commit_export(eid, body, project, assets.delete)
-    if cleanup_error:
-        emit("temporary_cleanup_waiting", export_id=eid, error_type=cleanup_error)
+        kick(result["run_id"])
     return result
