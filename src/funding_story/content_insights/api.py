@@ -3,11 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, Body
 
 from ..bootstrap import content_insights_application
+from ..http_contract import API_PREFIX
 from ..observability import emit
 from ..security import Project
 from .models import ArtifactType, ContentInsightCreateRequest, ContentInsightRunResponse
 
-router = APIRouter(prefix="/v1", tags=["content-insights"])
+router = APIRouter(prefix=API_PREFIX, tags=["content-insights"])
 
 CREATE_EXAMPLE = {
     "source_revision": 42,
