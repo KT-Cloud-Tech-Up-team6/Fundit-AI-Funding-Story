@@ -128,7 +128,7 @@ Project Service는 AI 요청을 보내기 전에 snapshot이 해당 revision과 
 ### 7.1 생성 요청
 
 ```http
-POST /v1/content-insight-runs
+POST /api/v1/ai/content-insight-runs
 Authorization: Bearer {internal-token}
 X-Project-Id: {project-id}
 Content-Type: application/json
@@ -188,7 +188,7 @@ Content-Type: application/json
 ### 7.2 상태 조회
 
 ```http
-GET /v1/content-insight-runs/{run_id}
+GET /api/v1/ai/content-insight-runs/{run_id}
 Authorization: Bearer {internal-token}
 X-Project-Id: {project-id}
 ```
@@ -246,7 +246,7 @@ Storyline의 `role`은 생성 순서와 계약 검증을 위한 내부 값이다
 ### 7.3 artifact 재시도
 
 ```http
-POST /v1/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry
+POST /api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry
 Authorization: Bearer {internal-token}
 X-Project-Id: {project-id}
 ```
@@ -505,7 +505,7 @@ POST /v1/page-summary-runs
 POST /v1/storyline-runs
 ```
 
-기존 `POST /v1/content-insight-runs`는 호환 facade로 남아 두 command를 조합할 수 있다. 다음 경계가 이미 분리되어 있어야 이 전환이 가능하다.
+기존 `POST /api/v1/ai/content-insight-runs`는 호환 facade로 남아 두 command를 조합할 수 있다. 다음 경계가 이미 분리되어 있어야 이 전환이 가능하다.
 
 - artifact별 입력 mapper
 - artifact별 generator

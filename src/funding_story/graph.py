@@ -4,7 +4,6 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from . import provider
-from .bootstrap import new_checkpointer
 
 
 class FormatState(TypedDict, total=False):
@@ -17,7 +16,7 @@ class FormatState(TypedDict, total=False):
     failed: bool
 
 
-def format_graph(parser, saver=None, generator=None):
+def format_graph(parser, generator=None):
     generate = generator or provider.structured
 
     def call(state):
@@ -40,25 +39,21 @@ def format_graph(parser, saver=None, generator=None):
     graph.add_conditional_edges(
         "validate_format", lambda s: END if not s["failed"] or s["attempt"] >= 3 else "generate"
     )
-    return graph.compile(checkpointer=saver)
+    return graph.compile()
 
 
 def generate_checked(rid, prompt, model, parser=None, references=()):
-    saver = new_checkpointer()
     graph = format_graph(
-        parser or model.model_validate, saver, lambda p, s: provider.structured(p, s, references)
+        parser or model.model_validate,
+        lambda p, s: provider.structured(p, s, references),
     )
-    config = {"configurable": {"thread_id": rid}, "metadata": {"run_id": rid}, "recursion_limit": 16}
-    snapshot = graph.get_state(config)
-    initial = (
-        None
-        if snapshot.values
-        else {"prompt": prompt, "schema": model.model_json_schema(), "attempt": 0, "errors": []}
+    # Explicitly disable graph callbacks: prompts, Core DTOs, and generated bodies must not
+    # be exported to tracing systems. Operational metadata is emitted separately.
+    config = {"callbacks": [], "recursion_limit": 16}
+    result = graph.invoke(
+        {"prompt": prompt, "schema": model.model_json_schema(), "attempt": 0, "errors": []},
+        config,
     )
-    if snapshot.values and not snapshot.next:
-        result = snapshot.values
-    else:
-        result = graph.invoke(initial, config)
     if result.get("failed"):
         raise ValueError("출력 형식 재시도 2회 초과: " + result["errors"][-1])
     return model.model_validate(result["result"])

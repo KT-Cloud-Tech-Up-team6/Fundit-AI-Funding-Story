@@ -16,9 +16,10 @@ def test_application_and_domain_are_framework_and_infrastructure_independent():
 
 
 def test_composition_root_is_the_only_runtime_entry_point_importing_infrastructure():
-    for name in ("api.py", "assets.py", "graph.py", "provider.py", "tasks.py"):
+    for name in ("api.py", "graph.py", "provider.py", "tasks.py"):
         assert "infrastructure" not in (PACKAGE / name).read_text(), name
     assert "infrastructure" in (PACKAGE / "bootstrap.py").read_text()
+    assert not (PACKAGE / "assets.py").exists()
     assert not (PACKAGE / "store.py").exists()
 
 

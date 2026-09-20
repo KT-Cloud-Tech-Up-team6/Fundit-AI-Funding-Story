@@ -181,6 +181,19 @@ class ContentInsightsApplication:
     def pending_job_ids(self) -> list[str]:
         return self._records.pending_job_ids()
 
+    def pending_artifacts(self) -> list[tuple[str, ArtifactType]]:
+        pending = []
+        for record_id in self._records.pending_job_ids():
+            try:
+                row = self._records.get(record_id, kind=ARTIFACT_KIND)
+            except LookupError:
+                continue
+            pending.append((record_id, ArtifactType(row["data"]["artifact_type"])))
+        return pending
+
+    def readiness(self) -> tuple[bool, str]:
+        return self._records.ready()
+
     @contextmanager
     def claim_artifact(self, artifact_id: str) -> Iterator[Record | None]:
         with self._records.transaction() as lock:

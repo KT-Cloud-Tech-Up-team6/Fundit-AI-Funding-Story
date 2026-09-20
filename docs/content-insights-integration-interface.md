@@ -20,8 +20,8 @@ FE는 AI 내부 토큰을 보유하거나 AI API를 직접 호출하지 않는�
 ```text
 프로젝트 기본정보·스토리·리워드 저장 완료
   -> Project Service가 source_revision과 불변 snapshot 확정
-  -> POST /v1/content-insight-runs
-  -> GET /v1/content-insight-runs/{run_id} polling
+  -> POST /api/v1/ai/content-insight-runs
+  -> GET /api/v1/ai/content-insight-runs/{run_id} polling
   -> 두 required artifact 성공 확인
   -> Project Service가 최신 revision 결과 저장
   -> FE가 Project Service 공개 응답 조회
@@ -41,7 +41,7 @@ X-Project-Id: {project-uuid}
 생성 endpoint:
 
 ```http
-POST /v1/content-insight-runs
+POST /api/v1/ai/content-insight-runs
 ```
 
 핵심 요청 필드:
@@ -57,8 +57,8 @@ POST /v1/content-insight-runs
 상태 조회와 단일 artifact 재시도:
 
 ```http
-GET  /v1/content-insight-runs/{run_id}
-POST /v1/content-insight-runs/{run_id}/artifacts/{PAGE_SUMMARY|STORYLINE}/retry
+GET  /api/v1/ai/content-insight-runs/{run_id}
+POST /api/v1/ai/content-insight-runs/{run_id}/artifacts/{PAGE_SUMMARY|STORYLINE}/retry
 ```
 
 Project Service는 parent `status`가 아니라 `required_artifacts_ready`와 각 artifact 상태를 함께 저장한다. 더 최신 revision이 존재하면 이전 성공 결과를 공개 기준으로 사용하지 않는다.

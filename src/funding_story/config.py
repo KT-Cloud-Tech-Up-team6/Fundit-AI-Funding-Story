@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     db_pool_max_lifetime_seconds: float = Field(default=1800, gt=0)
     db_checkpoint_pool_max_size: int = Field(default=3, ge=1)
     celery_broker_url: str = "redis://localhost:56379/0"
+    funding_story_state_redis_url: str = "redis://localhost:56379/1"
+    funding_story_state_ttl_seconds: int = Field(default=86_400, ge=300)
+    project_service_base_url: str = "http://127.0.0.1:58002"
+    internal_api_key: str = ""
+    internal_http_timeout_seconds: float = Field(default=20, gt=0)
+    completion_callback_attempts: int = Field(default=3, ge=1, le=5)
     content_insights_page_summary_queue: str = "content-insights.page-summary"
     content_insights_storyline_queue: str = "content-insights.storyline"
     ai_service_token: str
@@ -30,14 +36,7 @@ class Settings(BaseSettings):
     google_cloud_location: str = "global"
     text_model: str = "gemini-3.8-flash"
     image_model: str = "gemini-3.1-flash-image"
-    storage_dir: str = "./data/assets"
-    storage_backend: str = "local"
-    s3_bucket: str = ""
-    s3_endpoint: str | None = None
     pretendard_font_path: str = ""
-    langsmith_tracing: bool = False
-    langsmith_api_key: str = ""
-    langsmith_project: str = "fundit-funding-story-local"
 
     @model_validator(mode="after")
     def validate_database_configuration(self):

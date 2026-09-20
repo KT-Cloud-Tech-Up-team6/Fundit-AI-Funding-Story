@@ -34,7 +34,7 @@ export AI_BASE_URL=http://127.0.0.1:58001
 export AI_INTERNAL_TOKEN=local-integration-only-change-for-deployment
 export PROJECT_ID=11111111-1111-1111-1111-111111111111
 
-curl -i -X POST "$AI_BASE_URL/v1/content-insight-runs" \
+curl -i -X POST "$AI_BASE_URL/api/v1/ai/content-insight-runs" \
   -H "Authorization: Bearer $AI_INTERNAL_TOKEN" \
   -H "X-Project-Id: $PROJECT_ID" \
   -H 'Content-Type: application/json' \
@@ -56,7 +56,7 @@ curl -i -X POST "$AI_BASE_URL/v1/content-insight-runs" \
 응답의 `run_id`로 조회한다.
 
 ```sh
-curl -s "$AI_BASE_URL/v1/content-insight-runs/$RUN_ID" \
+curl -s "$AI_BASE_URL/api/v1/ai/content-insight-runs/$RUN_ID" \
   -H "Authorization: Bearer $AI_INTERNAL_TOKEN" \
   -H "X-Project-Id: $PROJECT_ID"
 ```
@@ -68,7 +68,7 @@ Storyline 성공 결과는 schema v2여야 한다. AI 내부 응답은 `REWARD_I
 일시 오류로 `retryable=true`가 된 한 artifact만 재시도한다.
 
 ```sh
-curl -i -X POST "$AI_BASE_URL/v1/content-insight-runs/$RUN_ID/artifacts/STORYLINE/retry" \
+curl -i -X POST "$AI_BASE_URL/api/v1/ai/content-insight-runs/$RUN_ID/artifacts/STORYLINE/retry" \
   -H "Authorization: Bearer $AI_INTERNAL_TOKEN" \
   -H "X-Project-Id: $PROJECT_ID"
 ```

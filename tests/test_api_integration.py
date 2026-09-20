@@ -1,338 +1,185 @@
-import json
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from funding_story.api import app
+from funding_story.bootstrap import application
 from funding_story.config import settings
-from funding_story.infrastructure.persistence import connection, repository
 
-records = repository()
+PREFIX = "/api/v1/ai"
+
+
+def context(title="작은 공간을 위한 공기청정기"):
+    return {
+        "project": {
+            "business_type": "SOLE",
+            "category": {"major": "테크·가전", "minor": "생활가전"},
+            "title": title,
+            "goal_amount": 3_000_000,
+        },
+        "rewards": [
+            {
+                "reward_id": 101,
+                "name": "얼리버드 1대",
+                "description": "공기청정기 본품 1대",
+                "price": 129_000,
+                "is_limited": True,
+                "quantity": 100,
+                "is_early_bird": True,
+                "options": [{"group_name": "색상", "values": ["화이트", "그레이"]}],
+            }
+        ],
+        "source_images": [],
+    }
+
+
+def review():
+    return {
+        "reply": "제품과 이야기, 강점을 확인해 주세요.",
+        "product": "작은 공간을 위한 저소음 공기청정기",
+        "story": "생활 공간의 소음 부담을 줄이기 위해 만든 이야기",
+        "strengths": [
+            {"id": str(index), "title": f"강점 {index}", "description": f"설명 {index}"}
+            for index in range(1, 4)
+        ],
+        "problems": [{"heading": f"문제 {index}", "body": f"상황 {index}"} for index in range(1, 5)],
+        "missing": [],
+        "tone": None,
+        "brand_color": None,
+    }
 
 
 @pytest.fixture
-def client(monkeypatch, postgres_container):
+def client(monkeypatch):
+    project = str(uuid4())
+    monkeypatch.setattr("funding_story.api.open_pools", lambda: None)
+    monkeypatch.setattr("funding_story.api.close_pools", lambda: None)
     monkeypatch.setattr("funding_story.api.kick", lambda _: None)
-    monkeypatch.setattr("funding_story.content_insights.api.kick", lambda *_: None)
-    with connection() as conn:
-        conn.execute("SELECT 1")
-    test_client = TestClient(
-        app, headers={"Authorization": "Bearer " + settings().ai_service_token, "X-Project-Id": str(uuid4())}
-    )
-    yield test_client
-    with connection() as conn:
-        conn.execute(
-            "UPDATE ai_records SET data=jsonb_set(data, '{status}', '\"test_complete\"') "
-            "WHERE project_id=%s AND kind IN ('run','chat')",
-            (test_client.headers["X-Project-Id"],),
-        )
-        conn.execute(
-            "UPDATE ai_records SET data=jsonb_set(data, '{status}', '\"STALE\"') "
-            "WHERE project_id=%s AND kind IN ('content_insight_run','content_insight_artifact')",
-            (test_client.headers["X-Project-Id"],),
-        )
-
-
-def test_auth_and_project_isolation(client):
-    x = json.loads(Path("tests/fixtures/appliance.json").read_text())
-    sid = client.post("/v1/sessions", json=x).json()["id"]
-    assert client.get("/v1/sessions/" + sid).status_code == 200
-    assert client.get("/v1/sessions/" + sid, headers={"X-Project-Id": str(uuid4())}).status_code == 404
-    assert client.get("/v1/sessions/" + sid, headers={"Authorization": "Bearer wrong"}).status_code == 401
-    assert client.post("/v1/sessions/" + sid + "/confirm", json={"revision": 1}).status_code == 422
-
-
-def test_duplicate_chat_and_version(client):
-    x = json.loads(Path("tests/fixtures/appliance.json").read_text())
-    sid = client.post("/v1/sessions", json=x).json()["id"]
-    body = {"message_id": "same", "revision": 1, "text": "강점 정리"}
-    first = client.post(f"/v1/sessions/{sid}/messages", json=body)
-    second = client.post(f"/v1/sessions/{sid}/messages", json=body)
-    assert first.status_code == 202 and first.json()["id"] == second.json()["id"]
-    assert client.post(f"/v1/sessions/{sid}/messages", json={**body, "text": "변경"}).status_code == 409
-
-
-def test_run_confirmation_and_duplicate(client):
-    from test_contracts import review
-
-    x = json.loads(Path("tests/fixtures/appliance.json").read_text())
-    sid = client.post("/v1/sessions", json=x).json()["id"]
-    body = {"session_id": sid, "revision": 1, "idempotency_key": "same"}
-    assert client.post("/v1/runs", json=body).status_code == 409
-    row = records.get(sid)
-    row["data"]["review"] = review().model_dump()
-    records.save(sid, row["data"])
-    assert client.post(f"/v1/sessions/{sid}/confirm", json={"revision": 1}).status_code == 200
-    first = client.post("/v1/runs", json=body)
-    assert first.status_code == 202
-    assert client.post("/v1/runs", json=body).json()["id"] == first.json()["id"]
-    assert client.post("/v1/runs", json={**body, "revision": 2}).status_code == 409
-    row = records.get(first.json()["id"])
-    row["data"]["status"] = "failed"
-    records.save(row["id"], row["data"])
-
-
-def test_asset_isolation(client):
-    aid = client.post(
-        "/v1/assets",
-        files={"file": ("original.png", Path("tests/fixtures/original.png").read_bytes(), "image/png")},
-    ).json()["asset_id"]
-    assert client.get("/v1/assets/" + aid).status_code == 200
-    assert client.get("/v1/assets/" + aid, headers={"X-Project-Id": str(uuid4())}).status_code == 404
-
-
-def test_intake_can_begin_without_description_or_images_and_resume(client):
-    response = client.post("/v1/sessions", json={"title": "LUMI S1"})
-    assert response.status_code == 201
-    sid = response.json()["id"]
-    latest = client.get("/v1/sessions/latest").json()["session"]
-    assert latest["id"] == sid and latest["input"]["product_description"] == ""
-    assert client.get("/v1/sessions/latest", headers={"X-Project-Id": str(uuid4())}).json()["session"] is None
-    assert client.post(f"/v1/sessions/{sid}/confirm", json={"revision": 1}).status_code == 422
-    assert (
-        client.post(
-            f"/v1/sessions/{sid}/messages",
-            json={"message_id": "first", "revision": 1, "text": "무선 청소기예요."},
-        ).status_code
-        == 202
-    )
-
-
-def content_insight_request():
-    return {
-        "source_revision": 1,
-        "idempotency_key": "project-content-1",
-        "trigger": "PROJECT_REGISTRATION_COMPLETED",
-        "requested_artifacts": ["PAGE_SUMMARY", "STORYLINE"],
-        "project_snapshot": {
-            "title": "LUMI S1",
-            "category": "테크·가전",
-            "description": "약 1.3kg 본체와 세척 가능한 필터를 갖춘 무선 청소기입니다.",
-            "rewards": [
-                {
-                    "name": "얼리버드",
-                    "description": "본체와 틈새 노즐로 구성됩니다.",
-                    "price": 129000,
-                }
-            ],
-            "story_content": [
-                {"type": "TEXT", "value": "좁은 공간을 자주 청소하는 사용자를 위해 준비했습니다."}
-            ],
+    with TestClient(
+        app,
+        headers={
+            "Authorization": "Bearer " + settings().ai_service_token,
+            "X-Project-Id": project,
         },
+    ) as test_client:
+        yield test_client
+
+
+def test_session_chat_confirm_and_run_follow_v1_contract(client):
+    created = client.post(PREFIX + "/sessions", json={"context": context()})
+    assert created.status_code == 201
+    session = created.json()
+    assert set(session) == {
+        "session_id",
+        "revision",
+        "confirmed_revision",
+        "messages",
+        "missing",
+        "summary",
+        "active_chat_id",
     }
 
+    latest = client.get(PREFIX + "/sessions/latest").json()["session"]
+    assert latest["session_id"] == session["session_id"]
 
-def test_content_insight_api_is_idempotent_and_project_scoped(client):
-    body = content_insight_request()
-    first = client.post("/v1/content-insight-runs", json=body)
-    duplicate = client.post("/v1/content-insight-runs", json=body)
-
+    first = client.post(PREFIX + f"/sessions/{session['session_id']}/start")
+    duplicate = client.post(PREFIX + f"/sessions/{session['session_id']}/start")
     assert first.status_code == 202
-    assert duplicate.status_code == 202 and duplicate.json()["run_id"] == first.json()["run_id"]
-    result = first.json()
-    assert result["artifacts"]["PAGE_SUMMARY"]["required"] is True
-    assert result["artifacts"]["STORYLINE"]["required"] is True
-    assert client.get(f"/v1/content-insight-runs/{result['run_id']}").status_code == 200
-    assert (
-        client.get(
-            f"/v1/content-insight-runs/{result['run_id']}",
-            headers={"X-Project-Id": str(uuid4())},
-        ).status_code
-        == 404
+    assert duplicate.json() == first.json()
+
+    application.complete_chat(
+        session_id=session["session_id"],
+        chat_id=first.json()["chat_id"],
+        project=client.headers["X-Project-Id"],
+        source_revision=1,
+        review=review(),
+        reply=review()["reply"],
     )
+    events = client.get(PREFIX + f"/chats/{first.json()['chat_id']}/events")
+    assert '"chat_id"' in events.text and "event: done" in events.text
 
-    changed = json.loads(json.dumps(body))
-    changed["project_snapshot"]["description"] = "변경된 설명"
-    assert client.post("/v1/content-insight-runs", json=changed).status_code == 409
+    current = client.get(PREFIX + f"/sessions/{session['session_id']}").json()
+    assert current["revision"] == 2
+    assert current["missing"] == []
+    assert current["summary"]["product"].startswith("작은 공간")
 
-
-def test_content_insight_api_validates_source_and_retries_one_artifact(client):
-    invalid = content_insight_request()
-    invalid["project_snapshot"]["description"] = ""
-    invalid["project_snapshot"]["rewards"] = []
-    invalid["project_snapshot"]["story_content"] = []
-    assert client.post("/v1/content-insight-runs", json=invalid).status_code == 422
-
-    created = client.post("/v1/content-insight-runs", json=content_insight_request()).json()
-    storyline_id = created["artifacts"]["STORYLINE"]["artifact_id"]
-    row = records.get(storyline_id)
-    row["data"].update(
-        status="FAILED",
-        error={"code": "MODEL_UNAVAILABLE", "retryable": True, "message": "생성 작업에 실패했습니다."},
+    confirmed = client.post(
+        PREFIX + f"/sessions/{session['session_id']}/confirm",
+        json={"revision": 2},
     )
-    records.save(storyline_id, row["data"])
+    assert confirmed.json() == {"session_id": session["session_id"], "confirmed_revision": 2}
 
-    retried = client.post(f"/v1/content-insight-runs/{created['run_id']}/artifacts/STORYLINE/retry")
-    assert retried.status_code == 202
-    assert retried.json()["artifacts"]["STORYLINE"]["status"] == "QUEUED"
-    assert retried.json()["artifacts"]["PAGE_SUMMARY"]["status"] == "QUEUED"
-
-
-def test_session_start_queues_assistant_led_first_turn_once(client):
-    x = json.loads(Path("tests/fixtures/appliance.json").read_text())
-    created = client.post("/v1/sessions", json=x).json()
-
-    first = client.post(f"/v1/sessions/{created['id']}/start")
-    second = client.post(f"/v1/sessions/{created['id']}/start")
-
-    assert first.status_code == 202
-    assert first.json()["mode"] == "initial"
-    assert second.status_code == 202 and second.json()["id"] == first.json()["id"]
-    session = client.get(f"/v1/sessions/{created['id']}").json()
-    assert session["revision"] == 2
-    assert session["messages"] == []
-    assert session["active_chat"] == first.json()["id"]
-
-
-def test_chat_rejects_foreign_asset_without_changing_session(client):
-    sid = client.post("/v1/sessions", json={"title": "LUMI S1"}).json()["id"]
-    foreign = records.create(str(uuid4()), "asset", {"mime": "image/png"})
-    response = client.post(
-        f"/v1/sessions/{sid}/messages",
-        json={"message_id": "image", "revision": 1, "text": "사진입니다.", "asset_ids": [foreign]},
-    )
-    assert response.status_code == 404
-    session = client.get(f"/v1/sessions/{sid}").json()
-    assert session["revision"] == 1 and session["input"]["asset_ids"] == []
-
-
-def test_export_returns_png_text_manifest_and_commit_clears_temporary_design(client):
-    project = client.headers["X-Project-Id"]
-    source = Path("tests/fixtures/original.png").read_bytes()
-    source_asset = client.post("/v1/assets", files={"file": ("original.png", source, "image/png")}).json()[
-        "asset_id"
-    ]
-    scene = {
-        "version": 1,
-        "templateId": "appliance-reference-konva",
-        "revision": 24,
-        "brand": "#647895",
-        "blocks": [
-            {
-                "id": "hero",
-                "label": "프로젝트 소개",
-                "width": 860,
-                "height": 320,
-                "nodes": [
-                    {
-                        "id": "hero.image",
-                        "kind": "image",
-                        "x": 0,
-                        "y": 0,
-                        "width": 860,
-                        "height": 320,
-                        "assetId": source_asset,
-                        "fit": "cover",
-                        "focalX": 0.5,
-                        "focalY": 0.5,
-                        "desc": "제품",
-                    },
-                    {
-                        "id": "hero.pending-image",
-                        "kind": "image",
-                        "x": 20,
-                        "y": 20,
-                        "width": 80,
-                        "height": 80,
-                        "assetId": "",
-                        "pending": True,
-                        "fit": "cover",
-                        "focalX": 0.5,
-                        "focalY": 0.5,
-                        "desc": "사용자가 편집할 빈 이미지 슬롯",
-                    },
-                    {
-                        "id": "hero.title",
-                        "kind": "text",
-                        "x": 80,
-                        "y": 90,
-                        "width": 700,
-                        "height": 100,
-                        "text": "원래 문구",
-                        "fontFamily": "Pretendard",
-                        "fontSize": 52,
-                        "fontWeight": "700",
-                        "lineHeight": 1.2,
-                        "letterSpacing": -1,
-                        "align": "center",
-                        "fill": "#FFFFFF",
-                    },
-                ],
-            }
-        ],
+    request = {
+        "session_id": session["session_id"],
+        "confirmed_revision": 2,
+        "idempotency_key": "full-generation-1",
+        "context": context(),
     }
-    rid = records.create(
-        project,
-        "run",
-        {
-            "status": "succeeded",
-            "source_revision": 4,
-            "snapshot": {"private": "temporary"},
-            "document": {
-                "schema_version": 1,
-                "scene": scene,
-                "information": {"budget": "부품 확보와 검수에 사용합니다."},
-                "summary": "요약",
-                "storyline": "스토리라인",
-            },
-        },
+    accepted = client.post(PREFIX + "/runs", json=request)
+    duplicate_run = client.post(PREFIX + "/runs", json=request)
+    assert accepted.status_code == 202
+    assert duplicate_run.json() == accepted.json()
+    assert set(accepted.json()) == {"run_id", "status"}
+
+
+def test_message_idempotency_project_scope_and_error_shape(client):
+    session_id = client.post(PREFIX + "/sessions", json={"context": context()}).json()["session_id"]
+    body = {"message_id": "message-1", "revision": 1, "text": "사용 장면을 알려드릴게요."}
+    first = client.post(PREFIX + f"/sessions/{session_id}/messages", json=body)
+    duplicate = client.post(PREFIX + f"/sessions/{session_id}/messages", json=body)
+    assert duplicate.json() == first.json()
+
+    conflict = client.post(
+        PREFIX + f"/sessions/{session_id}/messages",
+        json={**body, "text": "다른 내용"},
     )
-    body = {
-        "source_input_revision": 4,
-        "idempotency_key": "export-once",
-        "text_overrides": {"hero.title": "수정 문구"},
+    assert conflict.status_code == 409
+    assert conflict.json()["code"] == "CONFLICT"
+
+    foreign = client.get(
+        PREFIX + f"/sessions/{session_id}",
+        headers={"X-Project-Id": str(uuid4())},
+    )
+    assert foreign.status_code == 404
+    assert foreign.json() == {
+        "code": "NOT_FOUND",
+        "message": "대상을 찾을 수 없습니다.",
+        "detail": None,
     }
-    response = client.post(f"/v1/runs/{rid}/exports", json=body)
-    assert response.status_code == 201
-    result = response.json()
-    assert result["status"] == "succeeded" and result["information"]["budget"].startswith("부품")
-    assert result["project_summary"] == {"summary": "요약", "storyline": "스토리라인"}
-    assert "text_overrides" not in result and len(result["images"]) == 1
-    image = client.get("/v1/assets/" + result["images"][0]["asset_id"])
-    assert image.status_code == 200 and image.headers["content-type"] == "image/png"
-    assert image.content.startswith(b"\x89PNG")
-    assert client.post(f"/v1/runs/{rid}/exports", json=body).json()["id"] == result["id"]
 
-    committed = client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 7})
-    assert committed.status_code == 200 and committed.json()["committed"] is True
-    assert committed.json()["cleanup_pending"] is False
-    assert client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 7}).status_code == 200
-    assert client.post(f"/v1/exports/{result['id']}/commit", json={"document_revision": 8}).status_code == 409
-    run = records.get(rid)["data"]
-    assert "document" not in run and "snapshot" not in run and run["temporary_design_cleared"]
-    assert client.get(f"/v1/exports/{result['id']}").json()["images"] == result["images"]
+    unauthorized = client.get(
+        PREFIX + f"/sessions/{session_id}",
+        headers={"Authorization": "Bearer wrong"},
+    )
+    assert unauthorized.status_code == 401
+    assert unauthorized.json()["code"] == "UNAUTHORIZED"
 
 
-def test_export_rejects_partial_run_unknown_slot_and_stale_revision(client):
-    project = client.headers["X-Project-Id"]
-    rid = records.create(
-        project,
-        "run",
-        {
-            "status": "partially_succeeded",
-            "source_revision": 2,
-            "document": {"scene": {"blocks": []}},
-        },
+def test_project_scope_accepts_be_uuid_v7_and_rejects_non_uuid(client):
+    valid = client.get(
+        PREFIX + "/sessions/latest",
+        headers={"X-Project-Id": "018f2c1a-3b4e-7a12-9c9d-0a1b2c3d4e5f"},
     )
-    body = {"source_input_revision": 2, "idempotency_key": "partial", "text_overrides": {}}
-    assert client.post(f"/v1/runs/{rid}/exports", json=body).status_code == 409
-    row = records.get(rid)
-    row["data"]["status"] = "succeeded"
-    row["data"]["document"] = {"scene": {"blocks": []}}
-    records.save(rid, row["data"])
-    assert (
-        client.post(
-            f"/v1/runs/{rid}/exports",
-            json={**body, "idempotency_key": "unknown", "text_overrides": {"unknown": "x"}},
-        ).status_code
-        == 422
+    assert valid.status_code == 200
+
+    invalid = client.get(
+        PREFIX + "/sessions/latest",
+        headers={"X-Project-Id": "project-1"},
     )
-    assert (
-        client.post(
-            f"/v1/runs/{rid}/exports",
-            json={**body, "idempotency_key": "stale", "source_input_revision": 1},
-        ).status_code
-        == 409
+    assert invalid.status_code == 400
+    assert invalid.json()["code"] == "INVALID_INPUT"
+
+
+def test_legacy_fields_and_routes_are_not_accepted(client):
+    invalid = client.post(
+        PREFIX + "/sessions",
+        json={"context": context(), "asset_ids": ["legacy"]},
     )
+    assert invalid.status_code == 400
+    assert invalid.json()["code"] == "INVALID_INPUT"
+
+    assert client.post("/v1/sessions", json={"context": context()}).status_code == 404
+    assert client.post(PREFIX + "/assets").status_code == 404
+    assert client.get(PREFIX + "/runs/not-an-ai-query").status_code == 404
+    assert client.post(PREFIX + "/runs/not-an-ai-query/retry").status_code == 404

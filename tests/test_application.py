@@ -1,14 +1,15 @@
 import copy
 from contextlib import contextmanager
+from uuid import uuid4
 
 import pytest
 
 from funding_story.application import ApplicationConflict, FundingStoryApplication
-from funding_story.models import ConfirmRequest, ProjectInput, RunRequest
+from funding_story.models import ConfirmRequest, RunRequest, SessionCreateRequest
 
 
 class FakeRecordRepository:
-    """In-memory domain-port adapter used to test use cases without PostgreSQL."""
+    """In-memory domain-port adapter shared by application service tests."""
 
     def __init__(self):
         self.records = {}
@@ -21,16 +22,16 @@ class FakeRecordRepository:
 
     def create(self, project, kind, data, record_id=None):
         self.sequence += 1
-        rid = record_id or f"record-{self.sequence}"
-        self.records[rid] = {
-            "id": rid,
+        record_id = record_id or str(uuid4())
+        self.records[record_id] = {
+            "id": record_id,
             "project_id": project,
             "kind": kind,
             "revision": 1,
             "data": copy.deepcopy(data),
             "sequence": self.sequence,
         }
-        return rid
+        return record_id
 
     def get(self, record_id, project=None, *, lock=False, kind=None):
         row = self.records.get(record_id)
@@ -98,76 +99,141 @@ class FakeRecordRepository:
         return True, "ready"
 
 
+def context(title="테스트 제품"):
+    return {
+        "project": {
+            "business_type": "SOLE",
+            "category": {"major": "테크·가전", "minor": "생활가전"},
+            "title": title,
+            "goal_amount": 3_000_000,
+        },
+        "rewards": [
+            {
+                "reward_id": 1,
+                "name": "얼리버드",
+                "description": "본품 1대",
+                "price": 129_000,
+                "is_limited": True,
+                "quantity": 100,
+                "is_early_bird": True,
+                "options": [],
+            }
+        ],
+        "source_images": [],
+    }
+
+
 def complete_review():
     return {
         "reply": "정리가 완료되었습니다.",
+        "product": "작은 공간용 생활가전",
+        "story": "생활 공간의 불편을 줄이는 제작 이야기",
         "strengths": [
-            {"id": "one", "title": "강점 1", "description": "설명 1"},
-            {"id": "two", "title": "강점 2", "description": "설명 2"},
-            {"id": "three", "title": "강점 3", "description": "설명 3"},
+            {"id": str(index), "title": f"강점 {index}", "description": f"설명 {index}"}
+            for index in range(1, 4)
         ],
         "problems": [{"heading": f"문제 {index}", "body": f"상황 {index}"} for index in range(1, 5)],
         "missing": [],
+        "tone": None,
+        "brand_color": None,
     }
 
 
-def test_session_to_run_use_case_without_database():
-    repository = FakeRecordRepository()
-    application = FundingStoryApplication(repository)
-    project = "project-1"
-
-    session = application.create_session(
-        project,
-        ProjectInput(title="테스트 제품"),
-        lambda asset_id, project_id: None,
-    )
-    chat, should_dispatch = application.start_session(session["id"], project)
-    duplicate, duplicate_dispatch = application.start_session(session["id"], project)
-
+def confirmed_session(application, project="project-1"):
+    session = application.create_session(project, SessionCreateRequest(context=context()))
+    chat, should_dispatch = application.start_session(session["session_id"], project)
     assert should_dispatch is True
-    assert duplicate_dispatch is False
-    assert duplicate["id"] == chat["id"]
-
     application.complete_chat(
-        session_id=session["id"],
-        chat_id=chat["id"],
+        session_id=session["session_id"],
+        chat_id=chat["chat_id"],
         project=project,
-        source_revision=2,
-        input_data=ProjectInput(title="테스트 제품").model_dump(),
+        source_revision=1,
         review=complete_review(),
         reply="정리가 완료되었습니다.",
     )
-    assert application.confirm_session(session["id"], ConfirmRequest(revision=3), project) == {
-        "confirmed_revision": 3
-    }
+    application.confirm_session(session["session_id"], ConfirmRequest(revision=2), project)
+    return session["session_id"]
 
-    request = RunRequest(session_id=session["id"], revision=3, idempotency_key="create-once")
-    run, should_dispatch = application.create_run(request, project)
-    duplicate_run, duplicate_dispatch = application.create_run(request, project)
+
+def test_session_to_run_is_idempotent_without_persisting_result_snapshot():
+    repository = FakeRecordRepository()
+    application = FundingStoryApplication(repository)
+    session_id = confirmed_session(application)
+    request = RunRequest(
+        session_id=session_id,
+        confirmed_revision=2,
+        idempotency_key="create-once",
+        context=context(),
+    )
+
+    run, should_dispatch = application.create_run(request, "project-1")
+    duplicate, duplicate_dispatch = application.create_run(request, "project-1")
 
     assert should_dispatch is True
     assert duplicate_dispatch is False
-    assert duplicate_run["id"] == run["id"]
-    assert application.pending_job_ids() == [run["id"]]
+    assert duplicate["run_id"] == run["run_id"]
+    stored = repository.get(run["run_id"])["data"]
+    assert set(stored) == {"status", "session_id", "confirmed_revision", "error"}
+    assert application.pending_job_ids() == [run["run_id"]]
 
 
-def test_run_idempotency_conflict_is_an_application_error():
+def test_active_run_prevents_context_replacement_and_is_cleared_after_delivery():
     repository = FakeRecordRepository()
     application = FundingStoryApplication(repository)
-    project = "project-1"
-    session_id = repository.create(
-        project,
-        "session",
-        {
-            "input": ProjectInput(title="테스트 제품").model_dump(),
-            "messages": [],
-            "review": complete_review(),
-            "confirmed_revision": 1,
-        },
+    session_id = confirmed_session(application)
+    first = RunRequest(
+        session_id=session_id,
+        confirmed_revision=2,
+        idempotency_key="first",
+        context=context(),
     )
-    application.create_run(RunRequest(session_id=session_id, revision=1, idempotency_key="same-key"), project)
+    run, _ = application.create_run(first, "project-1")
+
+    with pytest.raises(ApplicationConflict, match="전체 생성 작업"):
+        application.create_run(
+            RunRequest(
+                session_id=session_id,
+                confirmed_revision=2,
+                idempotency_key="second",
+                context=context("변경된 제품"),
+            ),
+            "project-1",
+        )
+
+    application.complete_run_delivery(run["run_id"], "succeeded")
+    second, dispatched = application.create_run(
+        RunRequest(
+            session_id=session_id,
+            confirmed_revision=2,
+            idempotency_key="second",
+            context=context("변경된 제품"),
+        ),
+        "project-1",
+    )
+    assert dispatched is True and second["run_id"] != run["run_id"]
+
+
+def test_same_idempotency_key_with_different_context_conflicts():
+    repository = FakeRecordRepository()
+    application = FundingStoryApplication(repository)
+    session_id = confirmed_session(application)
+    application.create_run(
+        RunRequest(
+            session_id=session_id,
+            confirmed_revision=2,
+            idempotency_key="same-key",
+            context=context(),
+        ),
+        "project-1",
+    )
 
     with pytest.raises(ApplicationConflict, match="중복 키"):
         application.create_run(
-            RunRequest(session_id=session_id, revision=2, idempotency_key="same-key"), project
+            RunRequest(
+                session_id=session_id,
+                confirmed_revision=2,
+                idempotency_key="same-key",
+                context=context("다른 제품"),
+            ),
+            "project-1",
         )

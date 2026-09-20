@@ -2,16 +2,16 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Fundit Funding Story AI",
-    "version": "0.3.0"
+    "version": "1.0.0"
   },
   "paths": {
-    "/v1/content-insight-runs": {
+    "/api/v1/ai/content-insight-runs": {
       "post": {
         "tags": [
           "content-insights"
         ],
         "summary": "Create Content Insight Run",
-        "operationId": "create_content_insight_run_v1_content_insight_runs_post",
+        "operationId": "create_content_insight_run_api_v1_ai_content_insight_runs_post",
         "parameters": [
           {
             "name": "authorization",
@@ -133,13 +133,13 @@
         }
       }
     },
-    "/v1/content-insight-runs/{run_id}": {
+    "/api/v1/ai/content-insight-runs/{run_id}": {
       "get": {
         "tags": [
           "content-insights"
         ],
         "summary": "Get Content Insight Run",
-        "operationId": "get_content_insight_run_v1_content_insight_runs__run_id__get",
+        "operationId": "get_content_insight_run_api_v1_ai_content_insight_runs__run_id__get",
         "parameters": [
           {
             "name": "run_id",
@@ -207,13 +207,13 @@
         }
       }
     },
-    "/v1/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry": {
+    "/api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry": {
       "post": {
         "tags": [
           "content-insights"
         ],
         "summary": "Retry Content Insight Artifact",
-        "operationId": "retry_content_insight_artifact_v1_content_insight_runs__run_id__artifacts__artifact_type__retry_post",
+        "operationId": "retry_content_insight_artifact_api_v1_ai_content_insight_runs__run_id__artifacts__artifact_type__retry_post",
         "parameters": [
           {
             "name": "run_id",
@@ -321,218 +321,10 @@
         }
       }
     },
-    "/v1/assets": {
+    "/api/v1/ai/sessions": {
       "post": {
-        "summary": "Upload",
-        "operationId": "upload_v1_assets_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_v1_assets_post"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/assets/{aid}": {
-      "get": {
-        "summary": "Download",
-        "operationId": "download_v1_assets__aid__get",
-        "parameters": [
-          {
-            "name": "aid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Aid"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/assets/{aid}/metadata": {
-      "get": {
-        "summary": "Asset Metadata",
-        "operationId": "asset_metadata_v1_assets__aid__metadata_get",
-        "parameters": [
-          {
-            "name": "aid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Aid"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/assets/import": {
-      "post": {
-        "summary": "Import Asset",
-        "operationId": "import_asset_v1_assets_import_post",
+        "summary": "Create Session",
+        "operationId": "create_session_api_v1_ai_sessions_post",
         "parameters": [
           {
             "name": "authorization",
@@ -572,11 +364,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "title": "Body"
+                "$ref": "#/components/schemas/SessionCreateRequest"
               }
             }
           }
@@ -586,9 +374,31 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
               }
             }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
           },
           "422": {
             "description": "Validation Error",
@@ -603,80 +413,10 @@
         }
       }
     },
-    "/v1/sessions": {
-      "post": {
-        "summary": "Session",
-        "operationId": "session_v1_sessions_post",
-        "parameters": [
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/sessions/latest": {
+    "/api/v1/ai/sessions/latest": {
       "get": {
         "summary": "Latest Session",
-        "operationId": "latest_session_v1_sessions_latest_get",
+        "operationId": "latest_session_api_v1_ai_sessions_latest_get",
         "parameters": [
           {
             "name": "authorization",
@@ -716,7 +456,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LatestSessionResponse"
+                }
               }
             }
           },
@@ -733,18 +475,18 @@
         }
       }
     },
-    "/v1/sessions/{sid}": {
+    "/api/v1/ai/sessions/{session_id}": {
       "get": {
-        "summary": "Session Get",
-        "operationId": "session_get_v1_sessions__sid__get",
+        "summary": "Get Session",
+        "operationId": "get_session_api_v1_ai_sessions__session_id__get",
         "parameters": [
           {
-            "name": "sid",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Sid"
+              "title": "Session Id"
             }
           },
           {
@@ -785,7 +527,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
               }
             }
           },
@@ -802,19 +546,18 @@
         }
       }
     },
-    "/v1/sessions/{sid}/start": {
+    "/api/v1/ai/sessions/{session_id}/start": {
       "post": {
-        "summary": "Session Start",
-        "description": "Let the assistant read registered project context and lead the first turn.",
-        "operationId": "session_start_v1_sessions__sid__start_post",
+        "summary": "Start Session",
+        "operationId": "start_session_api_v1_ai_sessions__session_id__start_post",
         "parameters": [
           {
-            "name": "sid",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Sid"
+              "title": "Session Id"
             }
           },
           {
@@ -855,7 +598,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatAcceptedResponse"
+                }
               }
             }
           },
@@ -872,18 +617,18 @@
         }
       }
     },
-    "/v1/sessions/{sid}/messages": {
+    "/api/v1/ai/sessions/{session_id}/messages": {
       "post": {
-        "summary": "Message",
-        "operationId": "message_v1_sessions__sid__messages_post",
+        "summary": "Add Message",
+        "operationId": "add_message_api_v1_ai_sessions__session_id__messages_post",
         "parameters": [
           {
-            "name": "sid",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Sid"
+              "title": "Session Id"
             }
           },
           {
@@ -934,7 +679,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatAcceptedResponse"
+                }
               }
             }
           },
@@ -951,18 +698,18 @@
         }
       }
     },
-    "/v1/chats/{rid}/events": {
+    "/api/v1/ai/chats/{chat_id}/events": {
       "get": {
-        "summary": "Events",
-        "operationId": "events_v1_chats__rid__events_get",
+        "summary": "Chat Events",
+        "operationId": "chat_events_api_v1_ai_chats__chat_id__events_get",
         "parameters": [
           {
-            "name": "rid",
+            "name": "chat_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Rid"
+              "title": "Chat Id"
             }
           },
           {
@@ -1020,18 +767,18 @@
         }
       }
     },
-    "/v1/sessions/{sid}/confirm": {
+    "/api/v1/ai/sessions/{session_id}/confirm": {
       "post": {
-        "summary": "Confirm",
-        "operationId": "confirm_v1_sessions__sid__confirm_post",
+        "summary": "Confirm Session",
+        "operationId": "confirm_session_api_v1_ai_sessions__session_id__confirm_post",
         "parameters": [
           {
-            "name": "sid",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Sid"
+              "title": "Session Id"
             }
           },
           {
@@ -1082,7 +829,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmResponse"
+                }
               }
             }
           },
@@ -1099,10 +848,10 @@
         }
       }
     },
-    "/v1/runs": {
+    "/api/v1/ai/runs": {
       "post": {
-        "summary": "Run",
-        "operationId": "run_v1_runs_post",
+        "summary": "Create Run",
+        "operationId": "create_run_api_v1_ai_runs_post",
         "parameters": [
           {
             "name": "authorization",
@@ -1152,377 +901,8 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/runs/{rid}": {
-      "get": {
-        "summary": "Get Run",
-        "operationId": "get_run_v1_runs__rid__get",
-        "parameters": [
-          {
-            "name": "rid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Rid"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/runs/{rid}/retry": {
-      "post": {
-        "summary": "Retry",
-        "operationId": "retry_v1_runs__rid__retry_post",
-        "parameters": [
-          {
-            "name": "rid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Rid"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/runs/{rid}/exports": {
-      "post": {
-        "summary": "Export Run",
-        "operationId": "export_run_v1_runs__rid__exports_post",
-        "parameters": [
-          {
-            "name": "rid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Rid"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExportRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExportResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/exports/{eid}": {
-      "get": {
-        "summary": "Get Export",
-        "operationId": "get_export_v1_exports__eid__get",
-        "parameters": [
-          {
-            "name": "eid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Eid"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExportResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/exports/{eid}/commit": {
-      "post": {
-        "summary": "Commit Export",
-        "operationId": "commit_export_v1_exports__eid__commit_post",
-        "parameters": [
-          {
-            "name": "eid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Eid"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          },
-          {
-            "name": "x-project-id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Project-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExportCommitRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExportResult"
+                  "$ref": "#/components/schemas/RunAcceptedResponse"
                 }
               }
             }
@@ -1719,19 +1099,72 @@
         ],
         "title": "ArtifactView"
       },
-      "Body_upload_v1_assets_post": {
+      "CategoryFact": {
         "properties": {
-          "file": {
+          "major": {
             "type": "string",
-            "contentMediaType": "application/octet-stream",
-            "title": "File"
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Major"
+          },
+          "minor": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Minor"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "file"
+          "major",
+          "minor"
         ],
-        "title": "Body_upload_v1_assets_post"
+        "title": "CategoryFact"
+      },
+      "ChatAcceptedResponse": {
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+            "title": "Chat Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "queued",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chat_id",
+          "status"
+        ],
+        "title": "ChatAcceptedResponse"
+      },
+      "ChatMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "assistant",
+              "user"
+            ],
+            "title": "Role"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "ChatMessage"
       },
       "ConfirmRequest": {
         "properties": {
@@ -1747,6 +1180,26 @@
           "revision"
         ],
         "title": "ConfirmRequest"
+      },
+      "ConfirmResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+            "title": "Session Id"
+          },
+          "confirmed_revision": {
+            "type": "integer",
+            "title": "Confirmed Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "confirmed_revision"
+        ],
+        "title": "ConfirmResponse"
       },
       "ContentInsightCreateRequest": {
         "properties": {
@@ -1841,223 +1294,64 @@
         ],
         "title": "ContentInsightTrigger"
       },
-      "ExportCommitRequest": {
+      "ErrorResponse": {
         "properties": {
-          "document_revision": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Document Revision"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "document_revision"
-        ],
-        "title": "ExportCommitRequest"
-      },
-      "ExportImage": {
-        "properties": {
-          "block_id": {
+          "code": {
             "type": "string",
-            "title": "Block Id"
+            "title": "Code"
           },
-          "order": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Order"
-          },
-          "asset_id": {
+          "message": {
             "type": "string",
-            "title": "Asset Id"
+            "title": "Message"
           },
-          "width": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Width"
-          },
-          "height": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Height"
-          },
-          "alt": {
-            "type": "string",
-            "title": "Alt"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "block_id",
-          "order",
-          "asset_id",
-          "width",
-          "height",
-          "alt"
-        ],
-        "title": "ExportImage"
-      },
-      "ExportRequest": {
-        "properties": {
-          "source_input_revision": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Source Input Revision"
-          },
-          "idempotency_key": {
-            "type": "string",
-            "maxLength": 120,
-            "minLength": 1,
-            "title": "Idempotency Key"
-          },
-          "text_overrides": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Text Overrides"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "source_input_revision",
-          "idempotency_key"
-        ],
-        "title": "ExportRequest"
-      },
-      "ExportResult": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "revision": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Revision"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "rendering",
-              "succeeded",
-              "failed"
-            ],
-            "title": "Status"
-          },
-          "run_id": {
-            "type": "string",
-            "title": "Run Id"
-          },
-          "source_input_revision": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Source Input Revision"
-          },
-          "schema_version": {
+          "detail": {
             "anyOf": [
-              {
-                "type": "integer"
-              },
+              {},
               {
                 "type": "null"
               }
             ],
-            "title": "Schema Version"
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorResponse"
+      },
+      "FundingStoryContext": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectFact"
           },
-          "images": {
+          "rewards": {
             "items": {
-              "$ref": "#/components/schemas/ExportImage"
+              "$ref": "#/components/schemas/RewardFact"
             },
             "type": "array",
-            "title": "Images"
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Rewards"
           },
-          "information": {
-            "additionalProperties": {
-              "type": "string"
+          "source_images": {
+            "items": {
+              "$ref": "#/components/schemas/SourceImageRef"
             },
-            "type": "object",
-            "title": "Information"
-          },
-          "fixed_content": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Fixed Content"
-          },
-          "project_summary": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectSummary"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "committed": {
-            "type": "boolean",
-            "title": "Committed",
-            "default": false
-          },
-          "document_revision": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Document Revision"
-          },
-          "committed_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Committed At"
-          },
-          "cleanup_pending": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cleanup Pending"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
+            "type": "array",
+            "maxItems": 30,
+            "title": "Source Images"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "id",
-          "revision",
-          "status",
-          "run_id",
-          "source_input_revision"
+          "project",
+          "rewards"
         ],
-        "title": "ExportResult"
+        "title": "FundingStoryContext"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2071,6 +1365,26 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "LatestSessionResponse": {
+        "properties": {
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session"
+        ],
+        "title": "LatestSessionResponse"
       },
       "MessageRequest": {
         "properties": {
@@ -2090,14 +1404,6 @@
             "maxLength": 12000,
             "minLength": 1,
             "title": "Text"
-          },
-          "asset_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 30,
-            "title": "Asset Ids"
           }
         },
         "additionalProperties": false,
@@ -2131,80 +1437,41 @@
         ],
         "title": "ProjectContentBlock"
       },
-      "ProjectInput": {
+      "ProjectFact": {
         "properties": {
-          "category": {
+          "business_type": {
             "type": "string",
-            "maxLength": 200,
-            "title": "Category",
-            "default": ""
-          },
-          "goal_amount": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
+            "enum": [
+              "GENERAL",
+              "SOLE",
+              "CORP"
             ],
-            "title": "Goal Amount"
+            "title": "Business Type"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CategoryFact"
           },
           "title": {
             "type": "string",
-            "maxLength": 200,
+            "maxLength": 40,
             "minLength": 1,
             "title": "Title"
           },
-          "product_description": {
-            "type": "string",
-            "maxLength": 20000,
-            "title": "Product Description",
-            "default": ""
-          },
-          "rewards": {
-            "items": {
-              "$ref": "#/components/schemas/Reward"
-            },
-            "type": "array",
-            "maxItems": 3,
-            "title": "Rewards"
-          },
-          "asset_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 30,
-            "title": "Asset Ids"
-          },
-          "tone": {
-            "type": "string",
-            "maxLength": 500,
-            "title": "Tone",
-            "default": ""
-          },
-          "brand_color": {
-            "type": "string",
-            "pattern": "^#[0-9a-fA-F]{6}$",
-            "title": "Brand Color",
-            "default": "#647895"
-          },
-          "information": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Information"
+          "goal_amount": {
+            "type": "integer",
+            "minimum": 500000.0,
+            "title": "Goal Amount"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "title"
+          "business_type",
+          "category",
+          "title",
+          "goal_amount"
         ],
-        "title": "ProjectInput"
+        "title": "ProjectFact"
       },
       "ProjectReward": {
         "properties": {
@@ -2284,27 +1551,13 @@
         ],
         "title": "ProjectSnapshot"
       },
-      "ProjectSummary": {
+      "RewardFact": {
         "properties": {
-          "summary": {
-            "type": "string",
-            "title": "Summary"
+          "reward_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Reward Id"
           },
-          "storyline": {
-            "type": "string",
-            "title": "Storyline"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "summary",
-          "storyline"
-        ],
-        "title": "ProjectSummary"
-      },
-      "Reward": {
-        "properties": {
           "name": {
             "type": "string",
             "maxLength": 100,
@@ -2322,59 +1575,123 @@
             "minimum": 0.0,
             "title": "Price"
           },
-          "normal_price": {
+          "is_limited": {
+            "type": "boolean",
+            "title": "Is Limited"
+          },
+          "quantity": {
             "anyOf": [
               {
-                "type": "integer",
-                "minimum": 0.0
+                "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Normal Price"
+            "title": "Quantity"
           },
-          "product_count": {
-            "type": "integer",
-            "maximum": 20.0,
-            "minimum": 1.0,
-            "title": "Product Count",
-            "default": 1
+          "is_early_bird": {
+            "type": "boolean",
+            "title": "Is Early Bird"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/RewardOption"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Options"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "reward_id",
           "name",
           "description",
-          "price"
+          "price",
+          "is_limited",
+          "quantity",
+          "is_early_bird"
         ],
-        "title": "Reward"
+        "title": "RewardFact"
+      },
+      "RewardOption": {
+        "properties": {
+          "group_name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Group Name"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Values"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "group_name",
+          "values"
+        ],
+        "title": "RewardOption"
+      },
+      "RunAcceptedResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+            "title": "Run Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "queued",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "status"
+        ],
+        "title": "RunAcceptedResponse"
       },
       "RunRequest": {
         "properties": {
           "session_id": {
             "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
             "title": "Session Id"
           },
-          "revision": {
+          "confirmed_revision": {
             "type": "integer",
             "minimum": 1.0,
-            "title": "Revision"
+            "title": "Confirmed Revision"
           },
           "idempotency_key": {
             "type": "string",
             "maxLength": 120,
             "minLength": 1,
             "title": "Idempotency Key"
+          },
+          "context": {
+            "$ref": "#/components/schemas/FundingStoryContext"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "session_id",
-          "revision",
-          "idempotency_key"
+          "confirmed_revision",
+          "idempotency_key",
+          "context"
         ],
         "title": "RunRequest"
       },
@@ -2389,6 +1706,177 @@
           "STALE"
         ],
         "title": "RunStatus"
+      },
+      "SessionCreateRequest": {
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/FundingStoryContext"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "context"
+        ],
+        "title": "SessionCreateRequest"
+      },
+      "SessionResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+            "title": "Session Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "confirmed_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed Revision"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StorySummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_chat_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Chat Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "revision",
+          "confirmed_revision",
+          "messages",
+          "missing",
+          "summary",
+          "active_chat_id"
+        ],
+        "title": "SessionResponse"
+      },
+      "SourceImageRef": {
+        "properties": {
+          "slot_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Slot Id"
+          },
+          "reward_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward Id"
+          },
+          "read_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Read Url"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "title": "Content Type"
+          },
+          "file_size": {
+            "type": "integer",
+            "maximum": 10485760.0,
+            "exclusiveMinimum": 0.0,
+            "title": "File Size"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slot_id",
+          "read_url",
+          "content_type",
+          "file_size",
+          "expires_at"
+        ],
+        "title": "SourceImageRef"
+      },
+      "StorySummary": {
+        "properties": {
+          "product": {
+            "type": "string",
+            "title": "Product"
+          },
+          "story": {
+            "type": "string",
+            "title": "Story"
+          },
+          "strengths": {
+            "items": {
+              "$ref": "#/components/schemas/StrengthSummary"
+            },
+            "type": "array",
+            "title": "Strengths"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "product",
+          "story",
+          "strengths"
+        ],
+        "title": "StorySummary"
       },
       "StorylineSection": {
         "properties": {
@@ -2424,6 +1912,25 @@
           "PROJECT_REASON"
         ],
         "title": "StorylineSectionRole"
+      },
+      "StrengthSummary": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "description"
+        ],
+        "title": "StrengthSummary"
       },
       "ValidationError": {
         "properties": {
