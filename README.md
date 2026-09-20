@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/hero-en.svg" alt="Funding Story AI — product conversations to PNG blocks and project text" width="100%">
+  <img src="assets/readme/hero-en.svg" alt="Funding Story AI" width="100%">
 </p>
 
 <p align="center">
@@ -9,84 +9,135 @@
   <a href="https://github.com/langchain-ai/langgraph"><img alt="LangGraph" src="https://img.shields.io/badge/orchestration-LangGraph-0F172A?style=flat-square"></a>
 </p>
 <p align="center">English | <a href="i18n/README-KR.md">한국어</a></p>
-<p align="center">Collect product details through conversation,<br>then generate crowdfunding page images and supporting text.</p>
 
----
+# Fundit Funding Story AI
 
-Funding Story AI is Fundit's internal AI API. It reads registered product information, asks for missing details, and presents a summary and product strengths for user confirmation. An asynchronous generation job fills a design template with copy and images. The final output is ordered PNG assets and project information text.
+Internal AI service for conversational Funding Story intake and full-page generation.
+The integration boundary is **FE → BE → AI**: FE never calls this service directly, and AI
+never reads or writes the BE Core database.
 
-It also exposes Content Insights independently of the optional authoring flow. A project-service snapshot creates required page-summary and storyline artifacts, each with its own state, queue, prompt version, and retry lifecycle. Storyline v2 returns two ordered headline/detail blocks without exposing internal semantic labels to the frontend.
-
-This repository contains the AI service, worker, template resources, tests, and integration contracts. Frontend screens, project ownership, permanent project content, and publishing belong to the frontend/backend services.
-
-[Features](#what-does-funding-story-ai-do) · [Quick Start](#-quick-start) · [Architecture](#-architecture) · [Output](#what-you-get) · [Documentation](#learn-more)
-
-## What does Funding Story AI do?
+## Funding Story capabilities
 
 ### Conversational intake
 
-- Starts from registered product facts, rewards, and reference images.
-- Streams conversational replies through SSE and asks for missing context.
-- Lets users revise, reorder, or remove product strengths through conversation.
-- Requires confirmation of the current input revision before generation.
+- Starts from registered project facts, rewards, and reference images.
+- Streams questions and summaries through SSE while collecting missing Story context.
+- Lets users revise, reorder, or remove strengths through conversation.
+- Requires confirmation of the current revision before a full generation run.
 - Preserves supplied prices, units, specifications, and conditions; missing facts are not invented.
 
-### Template-based generation
+### Template generation
 
-- Includes nine required appliance-template blocks in a fixed order.
-- Selects Point layouts for confirmed strengths and optionally includes an Information block.
-- Generates copy and images for declared slots, with failed slots available for retry.
-- Measures copy with Konva; slot-format failures feed into the existing bounded LangGraph retry.
-- Uses no additional model-based factuality judge or automatic factual correction pass.
+- Produces copy and images for the configured Funding Story template blocks.
+- Uses confirmed strengths and optional product information without fabricating unsupported content.
+- Retries failed image or rendering slots internally and reports usable partial results when needed.
 
-### PNG and text export
+### Rendering and delivery
 
-- Renders PNGs with server-side Chromium, Konva 10.5.0, and Pretendard.
-- Keeps template font sizes; linked text follows explicit layout rules.
-- Returns budget, schedule, team, policy, and risks separately as text. Gift detail descriptions are excluded.
-- Clears temporary design data after the backend confirms permanent content storage.
-- Does not offer design re-editing of saved PNGs or a frontend editor in this repository.
+- Renders PNG output with server-side Chromium, Konva, and Pretendard.
+- Uploads generated images to BE-owned storage using short-lived upload targets.
+- Delivers generated body content, image references, and terminal status to BE through one completion callback.
 
-### Content Insights
+## Contract at a glance
 
-- Creates `PAGE_SUMMARY` without a Funding Story session or export.
-- Accepts one parent request while persisting and running `PAGE_SUMMARY` and `STORYLINE` independently.
-- Requires both Page Summary and Storyline for registration readiness while keeping their execution and retries independent.
-- Returns Storyline as two ordered headline/description sections; internal section roles are not rendered to users.
-- Uses dedicated Celery queues and durable database recovery so optional image work cannot consume the Page Summary subscription.
-- Marks older project revisions stale and supports retrying only the failed, retryable artifact.
+| Boundary | Contract |
+|---|---|
+| BE → AI | `Authorization: Bearer <service-token>` + `X-Project-Id` |
+| Public service base path | `/api/v1/ai` (the same path is used by FE→BE and BE→AI) |
+| AI → BE | `X-Internal-Api-Key` + `X-Project-Id` |
+| Final images | AI requests presigned PUT targets from BE and uploads to BE-owned object storage |
+| Final result | AI sends one completion callback; BE validates and owns the public result |
+| Regeneration | Full regeneration only; no block/slot partial-regeneration API |
 
-## 🚀 Quick Start
+Funding Story endpoints:
 
-### 1. Install
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/ai/sessions` | Create a TTL intake session from BE Core facts |
+| `GET` | `/api/v1/ai/sessions/latest` | Recover the latest valid TTL session |
+| `GET` | `/api/v1/ai/sessions/{session_id}` | Read public session state |
+| `POST` | `/api/v1/ai/sessions/{session_id}/start` | Queue the assistant-led first turn |
+| `POST` | `/api/v1/ai/sessions/{session_id}/messages` | Queue one idempotent user message |
+| `GET` | `/api/v1/ai/chats/{chat_id}/events` | Stream the answer and terminal chat event |
+| `POST` | `/api/v1/ai/sessions/{session_id}/confirm` | Confirm the current summary revision |
+| `POST` | `/api/v1/ai/runs` | Queue a full generation run |
 
-Requires Python 3.12.14, [uv](https://docs.astral.sh/uv/), Docker Compose, and Google Cloud credentials for live model calls. Run from this repository's root:
+AI calls these BE-internal endpoints after generation:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/internal/ai/media/upload-targets` | Obtain one presigned PUT target per output slot |
+| `POST` | `/internal/ai/runs/{run_id}/completion` | Deliver `succeeded`, `partially_succeeded`, or `failed` |
+
+There is intentionally no AI `GET /runs/{run_id}`, asset API, export API, export ID, or
+partial-regeneration endpoint. Public run lookup belongs to BE.
+
+## Data ownership
+
+```mermaid
+flowchart LR
+    FE[FE] -->|/api/v1/ai| BE[Backend]
+    BE -->|same path + Core DTO| AI[Funding Story AI]
+    AI -->|upload target request| BE
+    AI -->|presigned PUT| STORE[(BE-owned object storage)]
+    AI -->|completion callback| BE
+    FE -->|run lookup| BE
+```
+
+- Funding Story sessions, chats, run control state, revisions, and idempotency are TTL Redis data.
+- Project facts, source images, final PNGs, generated public content, and final run state are BE-owned.
+- Source images and generated PNGs are held in AI process memory only while a job is running.
+- Funding Story does not persist input snapshots, generated documents, intermediate images, or
+  LangGraph checkpoints in PostgreSQL.
+- PostgreSQL remains in this service only for the separate Content Insights feature.
+- Logs contain operational metadata only; prompts, user text, Core DTOs, signed URLs, and generated
+  bodies are not written to logs or tracing systems.
+
+## Generation rules
+
+- BE Core DTO is the only source for project facts, rewards, prices, quantities, and source images.
+- `price` is the only displayed reward price. `normal_price` and discount expressions are excluded.
+- Reward `quantity` means available stock; it is never used as the number of products shown.
+- Information collection ends with a chat summary of product, story, and strengths.
+- Image generation retries internally. If usable outputs remain after a final slot failure, AI sends
+  `partially_succeeded`; otherwise it sends `failed`.
+
+## Content Insights
+
+Content Insights is separate from the optional Funding Story authoring flow. After a project
+snapshot is saved, Project Service requests two independent artifacts from this service:
+
+- `PAGE_SUMMARY`: a short summary for the project detail page.
+- `STORYLINE`: two ordered headline/detail blocks that summarize what the project is and why it matters (schema v2; internal semantic roles stay hidden).
+
+Both artifacts are required for the project readiness policy. Project Service owns the canonical
+public result and the FE reads it from Project Service; FE does not call these AI endpoints directly.
+The current internal endpoints use the same service base path:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/ai/content-insight-runs` | Create a snapshot-based parent run |
+| `GET` | `/api/v1/ai/content-insight-runs/{run_id}` | Read artifact status and results |
+| `POST` | `/api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry` | Retry one retryable artifact |
+
+Content Insights keeps its own PostgreSQL-backed artifact state, queues, revision checks, and
+retry lifecycle. It does not use the Funding Story TTL session state.
+
+## Local development
+
+Requires Python 3.12.14, [uv](https://docs.astral.sh/uv/), Docker, and Google Cloud credentials for
+live model calls.
 
 ```bash
 uv sync --frozen
 cp .env.example .env
 uv run playwright install chromium
 uv run python scripts/install_font.py
-```
-
-On Linux, use `uv run playwright install --with-deps chromium`. The font installer verifies the pinned checksum; font files stay under ignored `data/`.
-
-### 2. Configure and start dependencies
-
-Set `GOOGLE_CLOUD_PROJECT` and an internal `AI_SERVICE_TOKEN` in `.env`. For local Google credentials, use `gcloud auth application-default login` if ADC is not already configured. Live model calls incur provider charges.
-
-```bash
 docker compose up -d
 docker compose run --rm migrate validate
 ```
 
-The compose file starts an AI-only PostgreSQL on host port `5440`, Redis, and a one-shot
-Flyway migration service. Runtime processes validate the schema but never create tables.
-Full settings are in [`.env.example`](.env.example).
-
-### 3. Start API, worker, and scheduler
-
-Run each command in a separate terminal:
+Run API, worker, and scheduler in separate terminals:
 
 ```bash
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
@@ -94,44 +145,9 @@ uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO
 uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
 ```
 
-`solo` is the macOS development worker configuration. API and worker must share configuration and storage. Local API docs: [Swagger UI](http://127.0.0.1:58001/docs). Detailed setup and Docker usage: [Development guide](docs/development.md).
+Local Swagger UI: [http://127.0.0.1:58001/docs](http://127.0.0.1:58001/docs)
 
-### 4. Connect a caller
-
-Calls follow **FE → BE → AI**. The backend verifies ownership and sends `Authorization: Bearer <internal-token>` plus `X-Project-Id`. Do not expose this token to the browser.
-
-The optional authoring sequence is upload → session → start/chat → confirm revision → run → poll/retry → export → backend save → export commit. The required summary sequence is project snapshot → Content Insights run → artifact status → backend canonical save. Backend and frontend implementation is not shipped from this repository. See [API contracts](docs/architecture.md), [Content Insights integration contract](docs/content-insights-integration-interface.md), [OpenAPI](docs/openapi.json), and [frontend mapping](docs/frontend-call-contract.md).
-
-## 🏗 Architecture
-
-```mermaid
-flowchart LR
-    FE[Frontend] --> BE[Backend / ownership]
-    BE --> API[FastAPI]
-    API --> DB[(PostgreSQL)]
-    API --> Q[(Redis broker)]
-    Q --> W[Celery / LangGraph]
-    W --> M[Google GenAI]
-    W --> DB
-    W --> S[(Asset storage)]
-    API --> K[Chromium / Konva]
-    K --> S
-    API --> R[PNG manifest + text]
-    R --> BE
-```
-
-Python 3.12 / uv / FastAPI / LangGraph / Celery / PostgreSQL / Redis / Google GenAI SDK / optional LangSmith tracing. Redis transports jobs; PostgreSQL stores durable state and checkpoints. Asset storage supports local files or S3. Package versions are locked in `uv.lock`.
-
-## What you get
-
-- Ordered PNG asset IDs with block IDs, dimensions, and alternative text.
-- Project information text and a fixed crowdfunding-notice key.
-- Authoring-preview `project_summary.summary` and `storyline`; canonical public summaries come from Content Insights.
-- Export ID and source revision for backend storage confirmation.
-
-See the [example response](docs/examples/export-result.json). Supplied reward prices remain unchanged. Unregistered cards in the fixed three-card reward design remain `input_required`; they are not fabricated.
-
-## Validation and scope
+## Validation
 
 ```bash
 uv run ruff check src tests scripts
@@ -139,18 +155,20 @@ uv run pytest -q
 uv build
 ```
 
-Tests use a separate PostgreSQL database and mocked model calls; rendering tests run real Chromium. The [synthetic fixture](tests/fixtures/appliance.json) and [reference image](tests/fixtures/original.png) are test material, not commercial product claims.
+Funding Story application and HTTP contract tests use the in-memory TTL adapter. Database tests use
+an isolated PostgreSQL 17 container for Content Insights and existing migration validation. Rendering
+tests use real Chromium and Pretendard.
 
-Local validation includes 77 tests and an actual 14-block generation/export case. Application-layer tests run against an in-memory repository without Docker; database tests create an isolated PostgreSQL 17 container and apply the production Flyway migrations. Generated product details can still differ from reference images. Production deployment and live-model Content Insights approval are not claimed complete. See [validation scope](docs/validation.md).
+## Documentation
 
-## Learn more
-
-- [API and execution contracts](docs/architecture.md)
+- [API and execution contract](docs/architecture.md)
+- [OpenAPI](docs/openapi.json)
 - [Development and configuration](docs/development.md)
-- [Frontend call mapping](docs/frontend-call-contract.md)
 - [Content Insights API design](docs/content-insights-api-design.md)
-- [Content Insights operations and smoke test](docs/content-insights-operations.md)
+- [Content Insights integration](docs/content-insights-integration-interface.md)
+- [Content Insights operations](docs/content-insights-operations.md)
 - [Content Insights implementation checklist](docs/content-insights-implementation-checklist.md)
+- [Frontend call contract](docs/frontend-call-contract.md)
 - [Team handoff](docs/team-handoff.md)
 - [Validation scope](docs/validation.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)

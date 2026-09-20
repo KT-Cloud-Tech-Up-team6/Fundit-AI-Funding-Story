@@ -25,7 +25,7 @@ Backend·FE 항목의 `[x]`는 인터페이스 결정과 문서화 완료를 뜻
 
 - [x] `Fundit-AI-Funding-Story` 저장소를 유지한다.
 - [x] 선택적 Funding Story 작성과 필수 Content Insights 생성을 분리한다.
-- [x] 외부 생성 진입점은 `POST /v1/content-insight-runs` 하나로 설계한다.
+- [x] 외부 생성 진입점은 `POST /api/v1/ai/content-insight-runs` 하나로 설계한다.
 - [x] `PAGE_SUMMARY`와 `STORYLINE`을 독립 artifact로 모델링한다.
 - [x] `PAGE_SUMMARY`는 프로젝트 등록 완료 시 필수 생성한다.
 - [x] Project Service의 snapshot과 revision을 입력 기준으로 사용하는 계약을 확정한다.
@@ -150,12 +150,12 @@ Backend·FE 항목의 `[x]`는 인터페이스 결정과 문서화 완료를 뜻
 
 ## 8. API endpoint
 
-- [x] `POST /v1/content-insight-runs`를 구현한다.
+- [x] `POST /api/v1/ai/content-insight-runs`를 구현한다.
 - [x] 기존 Bearer token과 `X-Project-Id` 인증을 적용한다.
 - [x] 요청 snapshot을 불변 입력으로 저장한 뒤 `202`를 반환한다.
-- [x] `GET /v1/content-insight-runs/{run_id}`를 구현한다.
+- [x] `GET /api/v1/ai/content-insight-runs/{run_id}`를 구현한다.
 - [x] artifact별 output/error를 안정적인 응답 schema로 반환한다.
-- [x] `POST /v1/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry`를 구현한다.
+- [x] `POST /api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry`를 구현한다.
 - [x] 성공 artifact·최신이 아닌 revision·재시도 불가 오류의 `409` 규칙을 적용한다.
 - [x] 프로젝트 범위를 벗어난 run 조회·재시도를 거부하는 테스트를 추가한다.
 - [x] API OpenAPI JSON을 코드에서 재생성한다.

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../assets/readme/hero-en.svg" alt="Funding Story AI — product conversations to PNG blocks and project text" width="100%">
+  <img src="../assets/readme/hero-en.svg" alt="Funding Story AI" width="100%">
 </p>
 
 <p align="center">
@@ -9,113 +9,143 @@
   <a href="https://github.com/langchain-ai/langgraph"><img alt="LangGraph" src="https://img.shields.io/badge/orchestration-LangGraph-0F172A?style=flat-square"></a>
 </p>
 <p align="center"><a href="../README.md">English</a> | 한국어</p>
-<p align="center">제품 정보와 대화로 핵심 강점을 정리하고,<br>펀딩 상세페이지 이미지와 정보 텍스트를 생성합니다.</p>
 
----
+# Fundit Funding Story AI
 
-Funding Story AI는 Fundit의 내부 AI API입니다. 등록된 제품 정보와 사용자 대화를 바탕으로 추가 정보를 수집하고 요약·핵심 강점을 확인받습니다. 비동기 작업이 디자인 템플릿에 문구와 이미지를 채우며, 최종 결과는 순서가 있는 PNG 자산과 프로젝트 정보 텍스트입니다.
+대화형 정보 수집과 펀딩 상세 페이지 전체 생성을 담당하는 내부 AI 서비스입니다.
+호출 경계는 **FE → BE → AI**이며, FE는 AI를 직접 호출하지 않고 AI는 BE Core DB를
+직접 읽거나 쓰지 않습니다.
 
-선택적인 Funding Story 작성 흐름과 별개로 Content Insights API도 제공합니다. Project Service의 정규 snapshot에서 필수 페이지 요약과 필수 스토리라인 artifact를 각각 생성·저장·재시도합니다. Storyline v2는 내부 의미 구분명을 화면에 노출하지 않고 두 개의 헤드라인·상세 설명 블록을 반환합니다.
-
-이 저장소는 AI API·워커·템플릿·테스트·호출 계약을 포함합니다. FE 화면, BE 프로젝트 권한·영구 본문 저장·게시는 각 팀의 서비스가 담당합니다.
-
-## 주요 기능
+## Funding Story 기능
 
 ### 대화형 정보 수집
 
-- 등록 정보·선물·참고 이미지를 읽고 부족한 맥락만 질문합니다.
-- 답변은 SSE로 전달하며 강점 수정·정렬·삭제는 채팅으로 처리합니다.
-- 최신 입력 revision을 사용자가 확인해야 생성할 수 있습니다.
-- 가격·단위·스펙·조건은 입력을 보존하며 누락된 사실을 추정하지 않습니다.
+- 등록된 프로젝트 사실·리워드·참고 이미지를 바탕으로 시작합니다.
+- 부족한 Story 맥락을 SSE 질문·요약으로 수집합니다.
+- 채팅으로 강점을 수정·정렬·제외할 수 있습니다.
+- 최신 revision을 확인해야 전체 생성할 수 있습니다.
+- 입력된 가격·단위·스펙·조건을 보존하고 없는 사실은 만들지 않습니다.
 
-### 디자인 템플릿 기반 생성
+### 템플릿 생성
 
-- 생활가전 템플릿의 필수 9개 블록을 정해진 순서로 포함합니다.
-- 확인한 강점별 Point와 추가 제품 안내가 필요한 경우 Information을 구성합니다.
-- 이미지 슬롯마다 생성하며 실패한 슬롯만 재시도할 수 있습니다.
-- Konva로 텍스트 슬롯의 폭·높이·줄 수를 측정하고 형식 오류는 기존 LangGraph 재시도로 전달합니다.
-- 사실·표현을 재판정하는 추가 모델 호출이나 자동 사실 교정은 없습니다.
+- 설정된 Funding Story 템플릿 블록에 문구와 이미지를 생성합니다.
+- 확인된 강점과 선택 제품 정보를 사용하며 근거 없는 내용을 추가하지 않습니다.
+- 이미지·렌더링 슬롯은 내부적으로 재시도하고, 필요한 경우 사용 가능한 부분 결과를 전달합니다.
 
-### PNG와 텍스트 반환
+### 렌더링·전달
 
-- Chromium + Konva + Pretendard로 블록 PNG를 출력합니다.
-- 글꼴 크기는 유지하고 연결 문구는 템플릿의 배치 규칙을 따릅니다.
-- 예산·일정·팀·정책·예상 어려움은 일반 텍스트로 반환합니다. 선물 상세 설명은 제외합니다.
-- BE 저장 확인 후 임시 디자인을 정리합니다. 저장된 PNG의 디자인 재편집 기능은 제공하지 않습니다.
+- 서버 Chromium·Konva·Pretendard로 PNG를 렌더링합니다.
+- 단기 업로드 대상으로 생성 이미지를 BE 소유 저장소에 업로드합니다.
+- 생성 본문·이미지 참조·종료 상태를 하나의 완료 callback으로 BE에 전달합니다.
 
-### Content Insights
+## 계약 요약
 
-- Funding Story 세션이나 export 없이 `PAGE_SUMMARY`를 생성합니다.
-- 하나의 parent 요청 안에서 `PAGE_SUMMARY`와 `STORYLINE`을 독립 작업으로 실행합니다.
-- policy v2는 페이지 요약과 스토리라인을 모두 등록 필수 결과로 판정하며 두 결과가 성공해야 readiness를 충족합니다.
-- artifact별 queue·prompt version·오류·재시도와 project source revision을 보존합니다.
+| 경계 | 계약 |
+|---|---|
+| BE → AI | `Authorization: Bearer <service-token>` + `X-Project-Id` |
+| 공개 서비스 base path | `/api/v1/ai` — FE→BE와 BE→AI가 같은 경로 사용 |
+| AI → BE | `X-Internal-Api-Key` + `X-Project-Id` |
+| 최종 이미지 | BE가 발급한 presigned PUT으로 BE 소유 객체 저장소에 업로드 |
+| 최종 결과 | AI 완료 callback 후 BE가 검증·저장·공개 |
+| 재생성 | 전체 재생성만 지원, 블록·슬롯 부분 재생성 제외 |
 
-## 🚀 빠른 시작
+Funding Story API:
 
-Python 3.12.14, uv, Docker Compose가 필요합니다. 실제 모델 호출에는 Google Cloud ADC와 모델 접근 권한이 필요하며 비용이 발생합니다. 저장소 루트에서 실행합니다.
+| Method | Path | 기능 |
+|---|---|---|
+| `POST` | `/api/v1/ai/sessions` | BE Core 사실로 TTL 정보 수집 세션 생성 |
+| `GET` | `/api/v1/ai/sessions/latest` | 최근 유효 세션 복구 |
+| `GET` | `/api/v1/ai/sessions/{session_id}` | 공개 세션 상태 조회 |
+| `POST` | `/api/v1/ai/sessions/{session_id}/start` | AI 첫 질문 접수 |
+| `POST` | `/api/v1/ai/sessions/{session_id}/messages` | 멱등 메시지 접수 |
+| `GET` | `/api/v1/ai/chats/{chat_id}/events` | 답변·종료 SSE |
+| `POST` | `/api/v1/ai/sessions/{session_id}/confirm` | 현재 요약 revision 확인 |
+| `POST` | `/api/v1/ai/runs` | 전체 생성 접수 |
+
+생성 후 AI가 호출하는 BE 내부 API:
+
+| Method | Path | 기능 |
+|---|---|---|
+| `POST` | `/internal/ai/media/upload-targets` | 결과 슬롯별 presigned PUT 대상 발급 |
+| `POST` | `/internal/ai/runs/{run_id}/completion` | 성공·부분 성공·실패 완료 통지 |
+
+AI 결과 조회, asset, export, export commit, 부분 재생성 API는 없습니다. FE 공개 run 조회와
+최종 결과 소유는 BE 책임입니다.
+
+## 데이터 소유·수명
+
+```mermaid
+flowchart LR
+    FE[FE] -->|/api/v1/ai| BE[Backend]
+    BE -->|동일 경로 + Core DTO| AI[Funding Story AI]
+    AI -->|업로드 대상 요청| BE
+    AI -->|presigned PUT| STORE[(BE 소유 객체 저장소)]
+    AI -->|완료 callback| BE
+    FE -->|run 조회| BE
+```
+
+- 세션·채팅·run 제어 상태·revision·멱등 정보는 TTL Redis에만 둡니다.
+- 프로젝트 사실·원본 이미지·최종 PNG·공개 본문·최종 run 상태는 BE가 소유합니다.
+- 원본·중간 생성·렌더링 이미지는 작업 중 AI 프로세스 메모리에서만 사용합니다.
+- Funding Story 입력 snapshot, 생성 문서, 중간 이미지, LangGraph checkpoint는 PostgreSQL에
+  저장하지 않습니다.
+- PostgreSQL은 별도 기능인 Content Insights에만 유지합니다.
+- 로그·trace에는 사용자 원문, Core DTO, 프롬프트, 생성 본문, 이미지 참조, 서명 URL을
+  남기지 않습니다.
+
+## 생성 규칙
+
+- 프로젝트·리워드·가격·수량·원본 이미지는 BE Core DTO만 사실 근거로 사용합니다.
+- 리워드 가격은 `price`만 표시하며 `normal_price`·할인 표현은 사용하지 않습니다.
+- `quantity`는 재고 수량이며 이미지 속 완제품 개수로 사용하지 않습니다.
+- 필수 정보를 만족하면 채팅에서 제품·이야기·강점을 요약하고 확인받습니다.
+- 이미지 생성은 내부 재시도하며, 일부 최종 실패에도 사용 가능한 결과가 있으면
+  `partially_succeeded`, 없으면 `failed`로 완료 통지합니다.
+
+## Content Insights
+
+Content Insights는 선택적인 Funding Story 작성 흐름과 분리된 기능입니다. 프로젝트 저장 후
+Project Service가 정규 snapshot을 기준으로 다음 두 결과를 비동기로 요청합니다.
+
+- `PAGE_SUMMARY`: 프로젝트 상세 페이지용 짧은 요약
+- `STORYLINE`: 프로젝트가 무엇인지와 왜 필요한지를 요약한 두 개의 순서 있는 제목·설명 블록(schema v2, 내부 의미 구분명은 노출하지 않음)
+
+두 artifact 모두 프로젝트 준비 상태 판단에 필요한 결과입니다. 최종 공개 결과는 Project
+Service가 소유하고 FE는 Project Service를 통해 조회하며, FE가 AI endpoint를 직접 호출하지
+않습니다. 현재 내부 endpoint도 같은 service base path를 사용합니다.
+
+| Method | Path | 기능 |
+|---|---|---|
+| `POST` | `/api/v1/ai/content-insight-runs` | snapshot 기반 parent run 생성 |
+| `GET` | `/api/v1/ai/content-insight-runs/{run_id}` | artifact 상태·결과 조회 |
+| `POST` | `/api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry` | 재시도 가능한 artifact 단건 재시도 |
+
+Content Insights는 자체 PostgreSQL artifact 상태·queue·revision 확인·재시도 생명주기를
+사용하며 Funding Story의 TTL 세션 상태와 분리됩니다.
+
+## 로컬 실행
+
+Python 3.12.14, [uv](https://docs.astral.sh/uv/), Docker가 필요합니다. 실제 모델 호출에는
+Google Cloud 인증이 필요합니다.
 
 ```bash
 uv sync --frozen
 cp .env.example .env
 uv run playwright install chromium
 uv run python scripts/install_font.py
-```
-
-Linux에서는 `uv run playwright install --with-deps chromium`을 사용합니다. `.env`의 `GOOGLE_CLOUD_PROJECT`, `AI_SERVICE_TOKEN`을 설정합니다. ADC가 없다면 `gcloud auth application-default login`을 실행합니다.
-
-```bash
 docker compose up -d
 docker compose run --rm migrate validate
 ```
 
-Compose는 호스트 `5440`의 AI 전용 PostgreSQL, Redis, 일회성 Flyway migration을 실행합니다. API와 worker는 적용된 migration version과 필수 schema를 검사하고 불일치 시 기동을 중단합니다.
-
-다음 명령은 각각 별도 터미널에서 실행합니다.
+API·worker·scheduler를 각각 실행합니다.
 
 ```bash
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q celery
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q content-insights.page-summary
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q content-insights.storyline
+uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO
 uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
 ```
 
-`solo`는 macOS 개발 환경 설정입니다. API·워커는 동일한 DB·자산 저장소·설정을 사용합니다. [개발 환경 안내](../docs/development.md)와 [환경변수 예시](../.env.example)를 참고하세요.
-
-## 🏗 호출 구조
-
-```mermaid
-flowchart LR
-    FE[프론트엔드] --> BE[백엔드 / 소유권 확인]
-    BE --> API[FastAPI]
-    API --> DB[(PostgreSQL)]
-    API --> Q[(Redis)]
-    Q --> W[Celery / LangGraph]
-    W --> M[Google GenAI]
-    W --> DB
-    W --> S[(파일 저장소)]
-    API --> K[Chromium / Konva]
-    K --> S
-    API --> R[PNG 목록 + 정보 텍스트]
-    R --> BE
-```
-
-Python 3.12 / uv / FastAPI / LangGraph / Celery / PostgreSQL / Redis / Google GenAI 공식 SDK / 선택적 LangSmith 추적을 사용합니다. 의존성 버전은 `uv.lock`으로 고정합니다.
-
-**FE → BE → AI** 경로로 호출합니다. BE가 소유권을 확인한 후 내부 Bearer 토큰과 `X-Project-Id`를 전달합니다. 브라우저에 AI 내부 토큰을 노출하지 않습니다.
-
-선택적 작성은 업로드 → 세션·대화 → 입력 확인 → 생성·조회·재시도 → PNG export → BE 저장 → commit 순서입니다. 필수 요약은 프로젝트 snapshot → Content Insights run → artifact 조회 → BE canonical 저장 순서입니다. Backend·FE 구현은 이 저장소의 배포 범위에 포함하지 않습니다. [API 계약](../docs/architecture.md), [Content Insights 통합 인터페이스](../docs/content-insights-integration-interface.md), [OpenAPI](../docs/openapi.json)에 상세 필드가 있습니다.
-
-## 반환 결과
-
-- 블록별 PNG 자산 ID·순서·크기·대체 텍스트
-- 프로젝트 정보 텍스트와 공통 안내 key
-- 작성 흐름 호환용 `project_summary.summary`와 `storyline`; 공개 canonical 요약은 Content Insights 결과
-- BE 저장 확인용 export ID·원본 revision
-
-[반환 예시](../docs/examples/export-result.json)를 참고하세요. 3종 선물 디자인에서 미등록 카드는 입력 대기로 유지하며 선물·가격을 지어내지 않습니다.
-
-## 검증 범위
+## 검증
 
 ```bash
 uv run ruff check src tests scripts
@@ -123,19 +153,19 @@ uv run pytest -q
 uv build
 ```
 
-테스트는 Testcontainers가 매 실행마다 만드는 PostgreSQL 17에 운영과 같은 Flyway migration을 적용하고, 모델 호출은 mock하며 렌더링에는 실제 Chromium을 사용합니다. 테스트 자료는 [가상 제품 입력](../tests/fixtures/appliance.json)과 [참고 이미지](../tests/fixtures/original.png)입니다.
+Funding Story application·HTTP 계약 테스트는 in-memory TTL adapter를 사용합니다. DB 테스트는
+Content Insights와 기존 migration 검증을 위해 격리된 PostgreSQL 17을 사용하고, 렌더링 테스트는
+실제 Chromium·Pretendard를 사용합니다.
 
-로컬 자동 테스트 77개와 실제 14블록 생성·출력을 확인했습니다. application 계층 테스트는 in-memory repository로 Docker/DB 없이 실행되고, DB 통합 테스트는 격리된 PostgreSQL 17 컨테이너를 사용합니다. 생성 이미지의 제품 세부 형상 차이는 남습니다. 운영 배포와 Content Insights 실제 모델 품질 승인은 아직 완료로 보지 않습니다.
+## 문서
 
-## 관련 문서
-
-- [개발·환경설정](../docs/development.md)
-- [실행·API 계약](../docs/architecture.md)
-- [프론트 호출 대응](../docs/frontend-call-contract.md)
+- [API·실행 계약](../docs/architecture.md)
+- [OpenAPI](../docs/openapi.json)
+- [개발·환경 설정](../docs/development.md)
 - [Content Insights API 설계](../docs/content-insights-api-design.md)
-- [Content Insights 통합 인터페이스](../docs/content-insights-integration-interface.md)
-- [Content Insights 운영·연동](../docs/content-insights-operations.md)
+- [Content Insights 통합](../docs/content-insights-integration-interface.md)
+- [Content Insights 운영](../docs/content-insights-operations.md)
 - [Content Insights 작업 체크리스트](../docs/content-insights-implementation-checklist.md)
+- [프론트 호출 계약](../docs/frontend-call-contract.md)
 - [팀별 인계](../docs/team-handoff.md)
 - [검증 범위](../docs/validation.md)
-- [외부 라이브러리 고지](../THIRD_PARTY_NOTICES.md)

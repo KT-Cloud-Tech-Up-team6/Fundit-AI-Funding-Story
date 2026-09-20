@@ -21,24 +21,24 @@ Linux에서는 Chromium 설치에 `--with-deps`를 추가한다. 폰트는 Prete
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | PostgreSQL 주소와 AI 전용 DB 이름 |
 | `DB_USERNAME`, `DB_PASSWORD`, `DB_SSLMODE` | PostgreSQL 인증과 선택적 TLS 모드 |
 | `DB_POOL_MIN_SIZE`, `DB_POOL_MAX_SIZE`, `DB_POOL_TIMEOUT_SECONDS` | API/worker runtime pool 제한 |
-| `DB_CHECKPOINT_POOL_MAX_SIZE` | LangGraph checkpoint 전용 pool 최대값 |
+| `DB_CHECKPOINT_POOL_MAX_SIZE` | 기존 DB 호환 설정; Funding Story runtime에서는 사용하지 않음 |
 | `DATABASE_URL` | 한 배포 주기 동안만 유지하는 호환 override; 신규 설정에는 사용하지 않음 |
 | `CELERY_BROKER_URL` | 작업 전달용 Redis |
+| `FUNDING_STORY_STATE_REDIS_URL`, `FUNDING_STORY_STATE_TTL_SECONDS` | Funding Story 단기 세션·작업 상태 |
 | `CONTENT_INSIGHTS_PAGE_SUMMARY_QUEUE` | 필수 페이지 요약 전용 Celery queue |
 | `CONTENT_INSIGHTS_STORYLINE_QUEUE` | 스토리라인 전용 Celery queue |
 | `AI_SERVICE_TOKEN` | BE → AI 내부 인증, 운영 비밀 관리 필요 |
+| `PROJECT_SERVICE_BASE_URL`, `INTERNAL_API_KEY` | AI → BE 내부 callback·업로드 대상 발급 |
+| `INTERNAL_HTTP_TIMEOUT_SECONDS`, `COMPLETION_CALLBACK_ATTEMPTS` | AI → BE 요청 timeout·완료 callback 재시도 |
 | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Google 모델 프로젝트·위치 |
 | `TEXT_MODEL`, `IMAGE_MODEL` | 텍스트·이미지 모델 |
-| `STORAGE_BACKEND`, `STORAGE_DIR` | local 또는 s3; 로컬 자산 경로 |
-| `S3_BUCKET`, `S3_ENDPOINT` | S3 자산 설정, 자격증명은 SDK 기본 공급 체인 |
 | `PRETENDARD_FONT_PATH` | 별도 폰트 경로가 필요할 때 지정 |
-| `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` | 선택적 추적 |
 
-Google SDK는 ADC를 사용한다. 로컬 최초 인증은 `gcloud auth application-default login`으로 설정하며 인증 파일을 저장소에 복사하지 않는다. LangSmith로 전송할 정보·보존 범위는 배포 전 인프라/보안팀과 정한다.
+Google SDK는 ADC를 사용한다. 로컬 최초 인증은 `gcloud auth application-default login`으로 설정하며 인증 파일을 저장소에 복사하지 않는다. Funding Story 프롬프트·입출력은 외부 tracing으로 전송하지 않는다.
 
 ## DB migration
 
-Flyway만 application table과 LangGraph checkpoint table을 변경한다. `db/migration/V*__*.sql`은 적용 후 수정하지 않고 변경이 필요하면 다음 버전 파일을 추가한다. API와 worker는 시작 시 DB 연결·최신 migration version·필수 schema를 확인하고 불일치 시 기동을 중단한다. API의 `/health/ready`도 같은 검사를 수행한다. checksum 검사는 배포 전 Flyway validate 단계에서 수행하며 runtime은 migration을 직접 실행하지 않는다.
+Flyway는 Content Insights가 사용하는 기존 PostgreSQL schema를 관리한다. 기존 V2 checkpoint schema는 migration 이력 호환을 위해 유지하지만 Funding Story runtime은 읽거나 쓰지 않는다. `db/migration/V*__*.sql`은 적용 후 수정하지 않는다. API와 worker는 Content Insights DB와 Funding Story Redis 준비 상태를 확인하며 runtime은 migration을 직접 실행하지 않는다.
 
 ```sh
 # Compose DB에 적용 및 확인
@@ -62,7 +62,7 @@ uv run python scripts/baseline_existing_db.py --apply
 
 ## 프로세스
 
-API, worker, beat를 각각 실행한다. 모든 프로세스가 동일한 `.env`와 DB·스토리지를 사용해야 한다. Content Insights의 필수 작업이 선택적 이미지 생성 부하에 밀리지 않도록 queue subscription을 분리한다.
+API, worker, beat를 각각 실행한다. 모든 프로세스가 동일한 `.env`, Redis, Content Insights DB 설정을 사용해야 한다. Content Insights의 필수 작업이 이미지 생성 부하에 밀리지 않도록 queue subscription을 분리한다.
 
 ```sh
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
@@ -72,7 +72,7 @@ uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q conte
 uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
 ```
 
-`GET /health`는 상태 확인용이며 `/v1` 요청에는 내부 인증과 프로젝트 ID가 필요하다. OpenAPI UI는 `/docs`다. `solo`는 macOS 로컬용이며 운영 동시성은 별도로 정한다. 스케줄러는 중복 기동하지 않는다. 단일 로컬 worker가 필요하면 `-Q celery,content-insights.page-summary,content-insights.storyline`을 사용할 수 있지만 운영 격리 구성이 아니다. Content Insights smoke test와 복구 절차는 [운영·연동 안내](content-insights-operations.md)를 따른다.
+`GET /health`는 상태 확인용이며 `/api/v1/ai` 요청에는 내부 인증과 프로젝트 ID가 필요하다. OpenAPI UI는 `/docs`다. `solo`는 macOS 로컬용이며 운영 동시성은 별도로 정한다. 스케줄러는 중복 기동하지 않는다. 단일 로컬 worker가 필요하면 `-Q celery,content-insights.page-summary,content-insights.storyline`을 사용할 수 있지만 운영 격리 구성이 아니다. Content Insights smoke test와 복구 절차는 [운영·연동 안내](content-insights-operations.md)를 따른다.
 
 ## 테스트와 패키징
 
@@ -92,7 +92,7 @@ docker build -t fundit-ai-funding-story:local .
 
 Dockerfile에 uv, 의존성, 검증된 폰트, Chromium을 포함한다. 기본 명령은 8000 포트의 API다. 동일 이미지의 워커 명령은 `/app/.venv/bin/celery -A funding_story.tasks worker --loglevel=INFO`이다. DB 초기화·beat는 별도 프로세스로 운영한다.
 
-컨테이너에서는 localhost가 Compose DB를 가리키지 않는다. 네트워크에 맞춰 공통 `DB_*`, `CELERY_BROKER_URL`, ADC, 저장 볼륨 또는 S3를 주입한다. 운영 토큰·네트워크·CDN·자산 보존 기간은 이 Dockerfile만으로 완성되지 않는다. 현재 Docker build와 원격 CI의 실제 실행 여부는 [검증 기록](validation.md)을 따른다.
+컨테이너에서는 localhost가 Compose 의존성을 가리키지 않는다. 네트워크에 맞춰 `DB_*`, 두 Redis URL, `PROJECT_SERVICE_BASE_URL`, 내부 토큰, ADC를 주입한다. 최종 객체 저장소는 BE가 발급하는 presigned URL로만 접근하므로 AI 저장소 설정은 없다.
 
 ## CNPG 배포 계약
 
@@ -102,7 +102,7 @@ dev/prod에서는 `APP_ENV`, `DB_HOST`, `DB_PORT`, `DB_NAME`, pool 크기를 Con
 
 ```text
 API DB_POOL_MAX_SIZE × API replica
-+ (worker DB_POOL_MAX_SIZE + DB_CHECKPOINT_POOL_MAX_SIZE) × worker process
++ worker DB_POOL_MAX_SIZE × Content Insights worker process
 + migration/운영 여유분
 <= CNPG 허용 연결 수
 ```

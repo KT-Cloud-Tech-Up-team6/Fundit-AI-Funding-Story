@@ -1,165 +1,197 @@
 # Funding Story AI 실행·API 계약
 
-기준: 2026-09-17, API 0.3.0. 이 저장소는 LangGraph·AI API와 호출 계약을 소유한다. FE 화면·디자인·Tiptap·Polotno 및 BE 프로젝트 본문 저장 코드는 범위에 포함하지 않는다.
-
-## 책임 경계
-
-| 영역 | 소유 | 기준 |
-|---|---|---|
-| 사용자·프로젝트·선물·권한 | BE | AI 호출 전 소유권 확인, 등록 사실 제공 |
-| 대화·확인 강점·생성 작업 | AI | PostgreSQL 세션·작업·LangGraph 체크포인트 |
-| 임시 디자인 | AI | PNG 내보내기와 BE 저장 확인 전까지만 유지 |
-| PNG·생성 이미지 파일 | 인프라 저장소 | AI가 저장, BE가 프로젝트 본문과 연결 |
-| 최종 PNG 순서·대체 텍스트·하단 본문 | BE | FE가 AI 결과를 불러온 뒤 revision 저장 |
-| 정규 프로젝트 snapshot·source revision | BE | 등록 완료 판단, Content Insights 입력과 최신 결과 판정 |
-| 페이지 요약·스토리라인 artifact | AI | 독립 생성·상태·재시도·prompt version |
-| 공개용 canonical 요약 결과 | BE | 최신 source revision 성공 결과만 저장·조회 |
-| 화면·모달·본문 편집 | FE/디자인 | 본 저장소는 요청·응답 계약과 샘플 제공 |
-
-호출 경로는 FE → BE → AI다. AI는 내부 Bearer 토큰과 `X-Project-Id`를 요구하며 사용자 인증을 직접 대체하지 않는다. FE가 AI 토큰을 보유하거나 AI API를 직접 공개 호출하면 안 된다.
-
-## 상태 흐름
-
-```text
-session
-  → chat queued/running/succeeded|failed
-  → review confirmed(revision)
-  → run queued/running/succeeded|partially_succeeded|failed
-  → export rendering/succeeded|failed
-  → BE 본문 저장
-  → export committed + 임시 디자인 정리
-```
-
-`succeeded` run만 PNG로 내보낼 수 있다. 1~2종 선물에서 남는 고정 템플릿 이미지 슬롯의 `input_required`는 중립색 편집 대기 프레임으로 렌더링하므로 export를 막지 않는다. 실제 이미지 생성 `failed`가 남은 `partially_succeeded` 결과는 409로 거부한다. 저장 성공 전에는 commit을 호출하지 않는다.
-
-Content Insights는 선택적 Funding Story 상태 흐름과 독립적이다.
-
-```text
-project content saved + source revision fixed
-  → content insight parent QUEUED/RUNNING
-  → PAGE_SUMMARY QUEUED/RUNNING/SUCCEEDED|FAILED
-  → STORYLINE    QUEUED/RUNNING/SUCCEEDED|FAILED
-  → required_artifacts_ready로 등록·심사 gate 판단
-  → 더 최신 source revision 생성 시 이전 run/artifact STALE
-```
-
-policy v2에서 Page Summary와 Storyline은 모두 등록 완료 시 필수다. 두 artifact가 모두 성공해야 `required_artifacts_ready=true`이며 하나만 실패한 `PARTIALLY_SUCCEEDED` 상태는 readiness를 충족하지 못한다. Storyline은 schema v2의 두 section으로 생성하고 각 section은 headline·description 한 줄을 가진다. 내부 section role은 공개 FE에 표시하지 않는다.
-
-## API
-
-모든 `/v1` 요청은 내부 Bearer 토큰과 `X-Project-Id`를 요구한다.
-
-| 메서드·경로 | 역할 |
+| 항목 | 값 |
 |---|---|
-| `POST /v1/assets` | 로컬/내부 검증용 multipart 이미지 업로드 |
-| `POST /v1/assets/import` | BE가 검증한 프로젝트 S3 key 가져오기 |
-| `GET /v1/assets/{id}` | 프로젝트 범위 자산 조회 |
-| `POST /v1/sessions` | 등록 정보 입력 스냅샷 생성 |
-| `GET /v1/sessions/latest` | 프로젝트의 최근 세션 복구 |
-| `GET /v1/sessions/{id}` | 세션·대화·review 조회 |
-| `POST /v1/sessions/{id}/start` | 등록 정보를 읽고 AI가 첫 추가 질문을 시작 |
-| `POST /v1/sessions/{id}/messages` | 메시지·첨부 접수, 대화 작업 생성 |
-| `GET /v1/chats/{id}/events` | 사용자에게 보여줄 답변 SSE |
-| `POST /v1/sessions/{id}/confirm` | 최신 revision의 요약·핵심 강점 확인 |
-| `POST /v1/runs` | 확인된 입력으로 전체 페이지 생성 |
-| `GET /v1/runs/{id}` | 생성 상태·임시 후보 조회 |
-| `POST /v1/runs/{id}/retry` | 실패/부분 성공 슬롯 재시도 |
-| `POST /v1/runs/{id}/exports` | 문구 수정값 적용, 블록별 PNG+텍스트 결과 생성 |
-| `GET /v1/exports/{id}` | 내보내기 결과 복구 |
-| `POST /v1/exports/{id}/commit` | BE 저장 revision 확인, 임시 디자인 정리 |
-| `POST /v1/content-insight-runs` | 정규 프로젝트 snapshot으로 parent와 독립 artifact 작업 생성 |
-| `GET /v1/content-insight-runs/{id}` | artifact별 상태·결과·오류와 required readiness 조회 |
-| `POST /v1/content-insight-runs/{id}/artifacts/{type}/retry` | retryable 실패 artifact 하나만 재시도 |
+| 공개 base path | `/api/v1/ai` |
+| 호출 흐름 | FE → BE → AI |
+| 생성 범위 | 전체 재생성만 지원 |
+| AI 상태 저장 | Redis TTL |
+| 최종 결과 소유 | BE |
 
-정확한 필드와 오류 응답은 [OpenAPI](openapi.json)를 따른다.
+## 1. 경계
 
-## FE 호출에 필요한 핵심 계약
+```mermaid
+flowchart LR
+    FE[FE] -->|사용자 인증| BE[Backend]
+    BE -->|Bearer service token<br/>X-Project-Id| AI[Funding Story AI]
+    AI -->|upload-targets| BE
+    AI -->|presigned PUT| STORE[(BE 객체 저장소)]
+    AI -->|completion callback| BE
+    FE -->|GET run| BE
+```
 
-처음 AI 작성을 열 때 FE는 BE context로 세션을 만든 뒤 `POST /v1/sessions/{id}/start`를 호출한다. 첫 AI 호출은 등록된 기본 정보·선물·이미지를 먼저 읽고 제품명·카테고리·가격처럼 이미 있는 내용을 다시 묻지 않는다. 확인한 내용을 짧게 되짚은 뒤 제작 계기·강조할 사용 장면·대상·말투 중 실제로 비어 있는 1~2가지만 질문한다. 이 첫 답변은 사용자 수정으로 취급하지 않는다.
+| 데이터 | 소유·보관 |
+|---|---|
+| 프로젝트·리워드 사실 | BE Core DB |
+| 원본·최종 이미지 | BE 소유 객체 저장소 |
+| 세션·채팅·run 제어 상태 | AI Redis TTL |
+| 최종 본문·상태·검증 URL | BE |
+| Content Insights artifact | AI PostgreSQL — Funding Story와 별도 기능 |
 
-메시지는 `message_id`와 현재 `revision`, 생성은 `idempotency_key`와 확인된 `revision`을 보낸다. 같은 키에 다른 내용은 409다. 메시지 후 응답 완료 revision을 다시 조회해 확인해야 한다. 애니메이션 시간이 아니라 `run.status`로 완료를 판단한다.
+AI는 BE Core DB를 읽거나 쓰지 않는다. Funding Story는 입력 snapshot, 생성 문서, 중간 이미지,
+최종 이미지, 장기 LangGraph checkpoint를 AI DB에 저장하지 않는다.
 
-PNG 내보내기 요청은 다음 형태다.
+## 2. BE → AI API
+
+공통 헤더:
+
+```http
+Authorization: Bearer <service-token>
+X-Project-Id: <project-public-id>
+Content-Type: application/json
+```
+
+| Method | Path | Request | Success |
+|---|---|---|---|
+| `POST` | `/api/v1/ai/sessions` | `SessionCreateRequest` | `201 SessionResponse` |
+| `GET` | `/api/v1/ai/sessions/latest` | - | `200 LatestSessionResponse` |
+| `GET` | `/api/v1/ai/sessions/{session_id}` | - | `200 SessionResponse` |
+| `POST` | `/api/v1/ai/sessions/{session_id}/start` | - | `202 ChatAcceptedResponse` |
+| `POST` | `/api/v1/ai/sessions/{session_id}/messages` | `MessageRequest` | `202 ChatAcceptedResponse` |
+| `GET` | `/api/v1/ai/chats/{chat_id}/events` | - | `200 text/event-stream` |
+| `POST` | `/api/v1/ai/sessions/{session_id}/confirm` | `ConfirmRequest` | `200 ConfirmResponse` |
+| `POST` | `/api/v1/ai/runs` | `RunCreateRequest` | `202 RunAcceptedResponse` |
+
+`GET /api/v1/ai/runs/{run_id}`는 BE 공개 조회 API이며 AI로 전달하지 않는다.
+
+## 3. 입력·대화
+
+```mermaid
+sequenceDiagram
+    participant FE
+    participant BE
+    participant AI
+    FE->>BE: POST /sessions {}
+    BE->>AI: SessionCreateRequest + Core context
+    AI-->>BE: session_id + revision
+    BE-->>FE: SessionResponse
+    FE->>BE: POST /sessions/{id}/start
+    BE->>AI: 동일 path
+    AI-->>FE: BE 중계를 통한 chat_id
+    loop missing이 빌 때까지
+        FE->>BE: message_id + revision + text
+        BE->>AI: MessageRequest
+        AI-->>FE: BE 중계를 통한 message* → done SSE
+    end
+    FE->>BE: confirm revision
+    BE->>AI: ConfirmRequest
+    AI-->>FE: BE 중계를 통한 confirmed_revision
+```
+
+| DTO | 핵심 필드 |
+|---|---|
+| `FundingStoryContext` | `project`, `rewards[1..3]`, `source_images[0..30]` |
+| `ProjectFact` | `business_type`, `category.major/minor`, `title`, `goal_amount` |
+| `RewardFact` | `reward_id`, `name`, `description`, `price`, `is_limited`, `quantity`, `is_early_bird`, `options` |
+| `SourceImageRef` | `slot_id`, `reward_id`, `read_url`, `content_type`, `file_size`, `expires_at` |
+| `MessageRequest` | `message_id`, `revision`, `text` |
+| `SessionResponse` | `session_id`, `revision`, `confirmed_revision`, `messages`, `missing`, `summary`, `active_chat_id` |
+
+`quantity`는 재고 수량이며 완제품 표시 개수가 아니다. `price`만 사용하고 `normal_price`, 할인율,
+`product_count`, `product_description`, 자유 형식 `information`, AI `asset_id`는 받지 않는다.
+
+## 4. 전체 생성·완료
+
+```mermaid
+sequenceDiagram
+    participant FE
+    participant BE
+    participant AI
+    participant STORE as BE 객체 저장소
+    FE->>BE: POST /runs
+    BE->>BE: 확인 시점 Core fingerprint 검사
+    BE->>AI: RunCreateRequest + 최신 context
+    AI-->>BE: 202 run_id + queued
+    AI->>AI: 메모리에서 전체 문구·이미지·PNG 생성
+    AI->>BE: POST /internal/ai/media/upload-targets
+    BE-->>AI: slot별 presigned PUT
+    AI->>STORE: PNG PUT
+    AI->>BE: POST /internal/ai/runs/{run_id}/completion
+    BE->>BE: 경로·존재·크기·MIME 검증
+    BE-->>AI: BE 확정 status
+    FE->>BE: GET /runs/{run_id}
+    BE-->>FE: 공개 결과
+```
+
+AI → BE 공통 헤더:
+
+```http
+X-Internal-Api-Key: <internal-key>
+X-Project-Id: <project-public-id>
+Content-Type: application/json
+```
+
+| Method | Path | Request | Success |
+|---|---|---|---|
+| `POST` | `/internal/ai/media/upload-targets` | `OutputDescriptor[]` | `200 UploadTarget[]` |
+| `POST` | `/internal/ai/runs/{run_id}/completion` | `RunCompletionRequest` | `200 RunCompletionResponse` |
+
+| 완료 상태 | 조건 |
+|---|---|
+| `succeeded` | 사용 가능한 이미지가 있고 최종 실패 슬롯 없음 |
+| `partially_succeeded` | 내부 재시도 후 실패 슬롯이 남지만 사용 가능한 결과 존재 |
+| `failed` | 사용할 수 있는 결과 없음 |
+
+부분 성공 결과도 AI가 BE에 전달한다. BE가 객체를 검증한 뒤 상태를 유지하거나 낮추며, FE 공개
+응답의 `partially_succeeded` 표시·처리는 BE와 FE 계약에서 담당한다.
+
+## 5. 멱등·동시성
+
+| 값 | 규칙 |
+|---|---|
+| `message_id` | 같은 ID·같은 입력은 기존 chat, 다른 입력은 `409` |
+| `revision` | 현재 revision 메시지만 접수, chat 성공 후 증가 |
+| `confirmed_revision` | 현재 요약 확인 revision, 새 대화 성공 시 해제 |
+| `idempotency_key` | 같은 키·같은 run 입력은 기존 run, 다른 입력은 `409` |
+| 활성 run | 같은 세션에 한 개만 허용해 비저장 입력 snapshot의 교체를 방지 |
+
+전체 재생성은 새 `idempotency_key`로 `POST /runs`를 다시 호출한다. `/runs/{run_id}/retry`,
+`target_block_id`, 슬롯 재생성 경로는 없다.
+
+## 6. 오류
+
+모든 동기 오류는 아래 형태다.
 
 ```json
 {
-  "source_input_revision": 3,
-  "idempotency_key": "project-uuid:export:1",
-  "text_overrides": {"hero.detail-0": "제약 없는\n무선 청소"}
+  "code": "CONFLICT",
+  "message": "전체 생성 작업을 처리 중입니다.",
+  "detail": null
 }
 ```
 
-응답의 `images`는 `block_id`, `order`, `asset_id`, `width`, `height`, `alt`를 가진다. `information`은 예산·일정·팀·정책·예상 어려움 입력을 구조화한 일반 텍스트다. `fixed_content.crowdfunding_notice_key`는 공통 안내 컴포넌트를 가리키며 LLM 생성 문구가 아니다. `project_summary`는 후속 라이브커머스 입력이다. 다만 기존 export의 `project_summary`는 Funding Story 작성 과정의 호환 preview이며 공개 상세 페이지의 canonical Page Summary/Storyline이 아니다. canonical 결과는 Content Insights가 생성하고 Project Service가 최신 source revision과 함께 저장한다.
+| HTTP | code |
+|---:|---|
+| 400 | `INVALID_INPUT` |
+| 401 | `UNAUTHORIZED` |
+| 403 | `FORBIDDEN` |
+| 404 | `NOT_FOUND` |
+| 409 | `CONFLICT` |
+| 422 | `NOT_READY_TO_GENERATE` 또는 `INVALID_PROJECT_DATA` |
+| 429 | `TOO_MANY_REQUESTS` |
+| 503 | `DEPENDENCY_FAILURE` |
 
-`text_overrides`는 존재하는 텍스트 슬롯만 허용하며 레이아웃·이미지·도형 변경을 받지 않는다. 최종 PNG의 디자인 재편집과 부분 블록 재생성 API는 제공하지 않는다.
+접수 후 실패는 HTTP 오류 조회가 아니라 BE 공개 run 응답의 terminal status로 표현한다.
 
-BE가 PNG 자산과 하단 본문을 같은 저장 revision으로 확정한 뒤 다음을 호출한다.
+## 7. Content Insights — 별도 기능
 
-```json
-POST /v1/exports/{export_id}/commit
-{"document_revision": 7}
-```
+Content Insights는 Funding Story 세션·전체 생성과 분리된 프로젝트 콘텐츠 요약 기능이다.
+Project Service가 저장한 정규 snapshot과 source revision을 기준으로 `PAGE_SUMMARY`와
+`STORYLINE` artifact를 독립 생성한다. `PAGE_SUMMARY`는 상세 페이지용 짧은 요약이고,
+`STORYLINE`은 schema v2의 두 개의 What·Why 제목·설명 블록이다. 내부 의미 구분명은 FE에
+직접 노출하지 않는다.
 
-동일 revision의 재호출은 안전하다. 다른 revision으로 이미 commit된 export는 409다. commit은 run의 임시 `document`·입력 `snapshot`, 합성에 사용한 중간 생성 이미지와 해당 실행의 LangGraph 체크포인트를 정리한다. 사용자 입력 이미지와 최종 PNG 자산·순서·대체 텍스트·정보 텍스트는 남는다. 정리가 실패하면 `cleanup_pending=true`를 유지하고 저장 결과를 취소하지 않는다.
+| Method | Path | 역할 |
+|---|---|---|
+| `POST` | `/api/v1/ai/content-insight-runs` | snapshot 기반 parent run 생성 |
+| `GET` | `/api/v1/ai/content-insight-runs/{run_id}` | parent·artifact 상태 및 결과 조회 |
+| `POST` | `/api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry` | retryable artifact 단건 재시도 |
 
-## LangGraph와 재시도
+각 artifact는 독립 상태·queue·prompt/schema version·오류·시도 횟수를 가지며, 더 최신
+source revision이 생기면 이전 결과는 공개 기준에서 제외한다. 두 required artifact가 모두
+성공해야 Project Service의 `required_artifacts_ready`가 충족된다. 공개 FE 응답은 AI 내부
+상태를 그대로 노출하지 않고 Project Service가 저장한 canonical 결과를 사용한다.
 
-- 대화: 등록 정보·전체 대화·이미지를 바탕으로 질문 또는 요약·제품의 핵심 강점을 구조화한다.
-- 생성: 블록 선택 → 슬롯 원고 → 슬롯별 이미지 → 임시 디자인 조립.
-- JSON 계약 오류: 오류 정보를 같은 단계에 전달해 최초 호출 뒤 최대 2회 재생성.
-- 공급자 429/503: 공식 SDK 래퍼에서 15초·30초 대기 후 제한 재시도.
-- 이미지 재시도: 성공 슬롯과 생성 자산 재사용.
-- 별도의 사실·표현 품질 심사 LLM이나 자동 교정 단계는 없다.
-
-가격·수치·단위·사양은 입력 원문을 보존한다. 사용자의 최신 명시 수정은 AI 초안 입력에 반영하지만 BE의 등록 원본을 직접 변경하지 않는다.
-
-## 저장과 관측
-
-Redis는 Celery 전달용이며 결과 원본이 아니다. PostgreSQL이 세션·작업·idempotency·체크포인트의 기준이다. LangSmith는 선택적 분석 도구이며 복구 의존성이 아니다. 로그와 trace에는 서비스 토큰·서명 URL·이미지 바이트를 기록하지 않는다.
-
-DB schema 변경 주체는 Flyway 하나다. `ai_records`, `ai_requests`, LangGraph checkpoint table은 `db/migration`의 forward-only SQL로 관리하며 API·worker가 런타임에 DDL을 실행하지 않는다. API와 worker는 각각 제한된 psycopg runtime pool을 사용하고 LangGraph checkpoint는 별도 pool을 사용한다. `/health`는 process liveness, `/health/ready`는 DB 연결과 최신 Flyway version을 확인한다.
-
-SQL과 transaction 구현은 `infrastructure/persistence`의 Postgres adapter에 있고 domain에는 repository port만 둔다. session/chat/run/export와 worker 상태 전이는 framework 비의존 `application/service.py`가 담당한다. `bootstrap.py`가 application과 Postgres adapter·pool lifecycle을 조립하며 API·Celery·asset·graph 진입점은 infrastructure를 직접 import하지 않는다. AI DB는 project-service DB 계정이나 table을 요구하지 않는다.
-
-Content Insights도 기존 generic `ai_records`/`ai_requests`를 사용한다. parent에는 snapshot hash와 적용 policy를, child artifact에는 source revision/hash, job key, schema/prompt/model version, 시도 횟수와 결과 또는 안전한 오류를 저장한다. artifact별 queue와 advisory lock을 사용하며 beat dispatcher가 broker 미전달 작업을 복구한다.
-
-최종 파일 저장소와 보존 기간은 인프라팀이 확정한다. local backend는 검증용이다. 운영 S3에서는 BE가 프로젝트 자산을 검증하고 AI에는 승인된 key만 전달한다.
-
-## 후속 타팀 작업
-
-- FE: 기존 FundingStoryModal의 목업 reducer를 API controller로 교체, SSE·폴링·오류 상태 처리.
-- FE: export `images`와 `information`을 기존 Tiptap 본문 형식으로 불러오고 저장 성공 뒤 commit 호출.
-- BE: 위 API 중계, 프로젝트 자산 영구 연결, 본문 revision 저장과 commit 순서 보장.
-- 디자인·기획: 결과 모달 문구 수정 UI, `input_required`, 실패/재시도, 공통 크라우드 펀딩 안내 문안 확정.
-- 인프라·보안: Gateway, S3 권한, API/worker 배포, 보존 기간, LangSmith 전송 범위, CNPG Secret/ConfigMap, Flyway migration Job, connection budget, migration/runtime 계정 분리와 dev smoke test 확정.
-
-## 템플릿 구성 계약
-
-`resources/template.json`의 `composition`이 포함 여부와 순서를 소유한다.
-필수 순서는 hero → problem → transition → product-visual → positioning → product-gallery → comparison → promise → Point → rewards다.
-
-`blockLibrary.categories`는 블록 라이브러리의 공통 분류 체계다. 상세뚝딱 편집기에서 확인한 순서와 명칭을 유지한다: 표, 그래프, 메리트, 사용방법, 포트폴리오, 브랜드 스토리, 고객 리뷰, 제품 비교, 추천 고객, 메인 비주얼, 상세 포인트, 구매 옵션 선택, 상품 정보 고시, 문제 제기/공감, 사용 전/후 비교, 배송/출고 속도 강조, 인증·신뢰, FAQ. 각 블록은 하나 이상의 `categoryIds`를 가지며 첫 항목을 주 카테고리로 사용한다. 아직 구현된 블록이 없는 카테고리도 이후 템플릿 다양화를 위해 유지한다.
-
-카테고리는 블록 검색·후보 축소용 메타데이터다. 현재 단일 생활가전 템플릿의 필수/선택 구성 규칙을 바꾸거나 LLM에 블록 포함 여부를 다시 위임하지 않는다. 생성 요구사항에는 각 블록의 `category_ids`를 전달해 해당 역할에 맞는 문구와 이미지 생성을 돕는다.
-
-- Point: 확인된 강점당 1개. 3~12개를 유지하며 전부 생략할 수 없다. 각 블록에 strengthId를 연결한다.
-- Information: Review.include_information 기본 false. LLM은 입력에 있는 추가 제품 안내가 Point와 중복되지 않고 슬롯을 추정 없이 채울 수 있을 때만 선택하며 information_reason에 근거를 남긴다.
-- Information은 하단 예산·일정·팀·신뢰와 안전 텍스트와 별개다. 하단 정보만 있다고 포함하지 않는다.
-- 필수 내용이 부족하면 대화의 missing과 reply에서 보완을 요청한다. 가격·성능·비교 근거를 만들거나 필수 블록을 삭제해서 해결하지 않는다.
-- 포함된 모든 블록의 텍스트·이미지 슬롯은 빠짐없이 작성한다. 디자인 좌표와 순서는 LLM 출력 대상이 아니다.
-
-구조 회귀 테스트와 실제 14블록 생성·PNG 출력 사례를 확인했다. 완료 범위와 남은 한계는 [검증 기록](validation.md)을 따른다.
-
-### Konva 텍스트 배치와 출력 기준
-
-PNG export는 서버의 Playwright Chromium + Konva 10.5.0 + Pretendard로 수행한다. 템플릿 scene의 text/shape/image 속성을 그대로 전달한다. LLM이 폰트 크기·도형 크기를 바꾸지 않으며, 짧은 텍스트를 채우기 위해 확대하지 않는다. 실행 시 외부 CDN을 호출하지 않는다. 고정 Konva 파일과 라이선스는 `resources/vendor`에 포함한다.
-
-- 템플릿 `textFlows`: promise의 강조 문구와 후속 문구는 같은 줄의 묶음이다. 시작점·최대폭은 고정하고 강조 텍스트의 실제 Konva 너비 + 4px에 후속 문구를 배치한다. 다른 노드는 이동하지 않는다.
-- `copyFit`: hero/rewards 제목 및 promise 원 안 문구는 2줄, 연결 제목 각 조각은 1줄, hero detail은 최대 2줄. requirements에 명시하고 실제 Konva 줄바꿈으로 확인한다.
-- LangGraph 출력 형식 검사에서 폭·높이·명시 줄 수를 측정한다. 실패하면 해당 슬롯과 실제/허용 값을 재시도에 전달한다. 별도 사실 판정 LLM 또는 생성 후 자동 교정 단계는 두지 않는다. 숫자·단위 축약으로 맞추지 않는다.
-- 출력은 PNG+일반 텍스트 API다. FE 변경이나 Konva 에디터 도입은 범위에 포함하지 않는다. `textLayoutVersion: 1`을 scene에 기록한다.
-- Chromium 설치가 필요하다: 로컬 `uv run playwright install chromium`, Linux `uv run playwright install --with-deps chromium`. Dockerfile에도 설치 단계를 포함한다. 브라우저는 export당 1개이며 모든 블록을 출력 후 닫는다. 운영 동시성·메모리 부하 측정은 별도다.
-
-속성 기준: [Konva.Text 공식 문서](https://konvajs.org/api/Konva.Text.html), [Playwright 브라우저 설치](https://playwright.dev/python/docs/browsers).
-
-선물 상세 설명(`gift_details`)은 텍스트 생성·추가 수집·출력 대상에서 제외한다. 입력에 해당 키가 있어도 조립 및 export에서 제외한다. 리워드 디자인 블록은 유지한다.
+상세 입력·응답과 운영 절차는 [Content Insights API 설계](content-insights-api-design.md),
+[통합 인터페이스](content-insights-integration-interface.md), [운영 안내](content-insights-operations.md)를
+따른다.
