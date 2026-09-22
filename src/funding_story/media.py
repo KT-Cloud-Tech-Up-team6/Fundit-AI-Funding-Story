@@ -92,13 +92,14 @@ class BackendClient:
 
     def complete(self, run_id: str, body: RunCompletionRequest) -> RunCompletionResponse:
         cfg = settings()
+        payload = body.model_dump_json().encode("utf-8")
         last_error = None
         for attempt in range(cfg.completion_callback_attempts):
             try:
                 response = httpx.post(
                     self._base + f"/internal/ai/runs/{run_id}/completion",
-                    headers=self._headers,
-                    json=body.model_dump(mode="json"),
+                    headers={**self._headers, "Content-Type": "application/json"},
+                    content=payload,
                     timeout=self._timeout,
                 )
                 response.raise_for_status()
