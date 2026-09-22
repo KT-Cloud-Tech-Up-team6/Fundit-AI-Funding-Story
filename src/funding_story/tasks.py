@@ -122,6 +122,18 @@ def _failed_completion(message: str) -> RunCompletionRequest:
     )
 
 
+class CompletionDeliveryError(RuntimeError):
+    """A finalized result must not be replaced by a generation-failure callback."""
+
+
+def _deliver_completion(client, run_id, body):
+    try:
+        response = client.complete(run_id, body)
+        application.complete_run_delivery(run_id, response.status)
+    except Exception as exc:  # Includes local bookkeeping after BE acceptance.
+        raise CompletionDeliveryError("완료 결과 전달 처리에 실패했습니다.") from exc
+
+
 @celery.task(name="funding.execute")
 def execute(record_id):
     with application.claim_job(record_id) as row:
@@ -135,13 +147,13 @@ def execute(record_id):
             else:
                 raise ValueError("지원하지 않는 작업 종류입니다.")
         except Exception as exc:  # noqa: BLE001
-            if row["kind"] == "run":
+            if row["kind"] == "run" and not isinstance(exc, CompletionDeliveryError):
                 try:
-                    response = BackendClient(row["project_id"]).complete(
+                    _deliver_completion(
+                        BackendClient(row["project_id"]),
                         row["id"],
                         _failed_completion("상세페이지 생성에 실패했습니다."),
                     )
-                    application.complete_run_delivery(row["id"], response.status)
                 except Exception as callback_exc:  # noqa: BLE001
                     application.fail_job(row["id"], callback_exc)
             else:
@@ -268,10 +280,7 @@ def _render_blocks(scene, sources, failed_blocks):
     for block in scene["blocks"]:
         if block["id"] in failed_blocks:
             continue
-        unresolved = any(
-            node["kind"] == "image" and node.get("pending")
-            for node in block["nodes"]
-        )
+        unresolved = any(node["kind"] == "image" and node.get("pending") for node in block["nodes"])
         # Empty reward cards are a template choice, not a generation failure.
         if unresolved and block["id"] != "rewards":
             failed_blocks[block["id"]] = _slot_error(
@@ -349,8 +358,7 @@ def generate(row):
             generated_body=GeneratedBody(
                 cover_image_slot_id=successful[0].slot_id,
                 intro_content=[
-                    ImageContentBlock(type="IMAGE", slot_id=image.slot_id)
-                    for image in successful
+                    ImageContentBlock(type="IMAGE", slot_id=image.slot_id) for image in successful
                 ],
             ),
             successful_images=successful,
@@ -360,5 +368,4 @@ def generate(row):
     else:
         body = _failed_completion("사용 가능한 상세페이지 결과를 만들지 못했습니다.")
         body.failed_slots = list(failed_blocks.values())
-    response = client.complete(run_id, body)
-    application.complete_run_delivery(run_id, response.status)
+    _deliver_completion(client, run_id, body)
