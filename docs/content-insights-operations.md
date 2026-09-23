@@ -6,24 +6,22 @@
 
 ## 로컬 실행
 
-API와 beat 외에 기존 Funding Story 작성, 필수 페이지 요약, 스토리라인 worker를 구분해 실행한다.
+API와 Funding Story 작성, 필수 페이지 요약, 스토리라인 polling worker를 구분해 실행한다.
 
 ```sh
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q celery
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q content-insights.page-summary
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO -Q content-insights.storyline
-uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
+uv run python -m funding_story.worker --lane funding-story
+uv run python -m funding_story.worker --lane page-summary
+uv run python -m funding_story.worker --lane storyline
 ```
 
-로컬에서 프로세스 수를 줄여야 할 때만 세 큐를 한 worker가 함께 소비할 수 있다.
+로컬에서 프로세스 수를 줄여야 할 때만 세 lane을 한 worker가 함께 처리한다.
 
 ```sh
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO \
-  -Q celery,content-insights.page-summary,content-insights.storyline
+uv run python -m funding_story.worker --lane all
 ```
 
-운영에서는 `content-insights.page-summary`와 `content-insights.storyline` worker를 각각 선택적 이미지/authoring worker와 분리된 Deployment로 둔다. 두 artifact가 모두 등록 필수 결과이므로 한 worker 장애가 다른 queue를 고갈시키지 않게 한다. queue 이름은 `CONTENT_INSIGHTS_PAGE_SUMMARY_QUEUE`, `CONTENT_INSIGHTS_STORYLINE_QUEUE`로 변경할 수 있다.
+운영에서는 `page-summary`, `storyline`, `funding-story` lane을 별도 Deployment로 둔다. 한 worker 장애가 다른 작업을 고갈시키지 않게 한다.
 
 권장 시작값은 dev에서 queue별 최소 1 replica다. staging에서 실제 처리시간·메모리·실패율을 측정한 뒤 production replica·concurrency·CPU·메모리를 확정한다. KEDA/HPA/Deployment 같은 배포 정책값은 `Fundit-Infra`가 아니라 ArgoCD가 읽는 `Fundit-GitOps`에서 관리한다. `Fundit-Infra`는 EKS·네트워크·DB와 컨트롤러 설치 상태를 확인하는 근거로 사용한다.
 
@@ -77,8 +75,9 @@ curl -i -X POST "$AI_BASE_URL/api/v1/ai/content-insight-runs/$RUN_ID/artifacts/S
 
 ## 장애 복구
 
-- API가 DB 저장 후 broker 전송에 실패해도 artifact는 `QUEUED`로 남는다. beat의 `funding.dispatch`가 15초 간격으로 다시 전달한다.
-- worker가 중단된 `RUNNING` artifact도 dispatcher가 다시 전달한다. PostgreSQL advisory lock이 동시에 실행되는 중복 delivery를 막는다.
+- API가 작업을 PostgreSQL에 `QUEUED`로 저장하면 polling worker가 회수한다.
+- `RUNNING` lease는 30초마다 갱신되고 worker 중단 후 최대 90초 뒤 다시 회수된다.
+- PostgreSQL row lock과 lease token이 중복 실행을 막는다.
 - 공급자 429/5xx는 한 모델 호출 안에서 15초·30초 간격으로 최대 3회 시도한다. 모두 실패하면 artifact가 `FAILED`, `retryable=true`가 된다.
 - 출력 형식 오류는 최초 호출 뒤 최대 2회 재생성한다. 계속 실패하면 `retryable=false`이며 새 revision으로 요청한다.
 - 새 source revision을 생성하면 직전 run과 artifact는 `STALE`이 되어 공개 기준으로 사용할 수 없다.
@@ -91,11 +90,11 @@ curl -i -X POST "$AI_BASE_URL/api/v1/ai/content-insight-runs/$RUN_ID/artifacts/S
 
 1. DB 복구 지점 확인 후 기존 Flyway migration을 validate한다. 이번 버전은 AI DB schema를 추가하지 않는다.
 2. API 0.3.0을 배포하되 Project Service trigger는 아직 켜지 않는다.
-3. Page Summary worker, Storyline worker, beat 순으로 배포하고 `/health/ready`를 확인한다.
-4. smoke test로 두 artifact의 독립 queue 소비와 상태 조회를 확인한다.
+3. Page Summary·Storyline polling worker를 배포하고 `/health/ready`를 확인한다.
+4. smoke test로 두 artifact의 독립 lane 처리와 상태 조회를 확인한다.
 5. Project Service의 Content Insights outbox/trigger를 배포한다.
 6. 기존 최신 행 중 `STORYLINE.required!=true`이거나 schema v2 section 두 개가 없는 프로젝트를 새 revision으로 재생성한다. Project Service 공개 mapper는 이 구버전 결과를 readiness 완료로 인정하지 않는다.
-7. 두 필수 queue의 delay·실패율과 Project Service의 required readiness를 확인한 뒤 등록 readiness를 활성화한다.
+7. 두 필수 lane의 대기시간·실패율과 Project Service의 required readiness를 확인한 뒤 등록 readiness를 활성화한다.
 8. 마지막으로 FE가 Project Service의 canonical 결과를 조회하도록 전환한다.
 
 롤백할 때는 먼저 Project Service의 신규 trigger/gate를 비활성화한다. 이미 접수된 artifact는 완료하거나 운영 정책에 따라 `STALE` 처리한 뒤 worker를 내린다. API endpoint와 기존 Funding Story 필드는 호환 기간 동안 유지하므로 AI 0.3.0을 먼저 제거할 필요는 없다.
@@ -104,7 +103,7 @@ curl -i -X POST "$AI_BASE_URL/api/v1/ai/content-insight-runs/$RUN_ID/artifacts/S
 
 첫 배포의 권장 시작 기준은 다음과 같다. 실제 트래픽을 측정한 뒤 변경하며 변경 이유를 체크리스트에 기록한다.
 
-- queue 대기시간 2분 이상 warning, 5분 이상 critical 후보
+- 작업 대기시간 2분 이상 warning, 5분 이상 critical 후보
 - `RUNNING` 10분 초과 작업을 stuck 작업 후보로 탐지
 - artifact type별 요청 수, 성공률, 실패율, retry율, p50/p95 duration과 모델 비용 집계
 - `required_artifacts_ready=false` 장기 지속 프로젝트 수 모니터링

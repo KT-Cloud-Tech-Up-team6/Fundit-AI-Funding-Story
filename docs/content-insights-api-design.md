@@ -451,25 +451,23 @@ Parent의 `artifact_ids`로 child record를 조회한다. artifact별 작업 loc
 
 AI는 첫 릴리스에서 현재 generic record 저장소를 재사용한다. 운영 조회·보존 요구를 충족하지 못하는 것이 측정될 때만 forward-only migration으로 전용 table을 추가한다. Project Service의 canonical 이력과 outbox는 별도 `project_content_insights` table에 저장한다.
 
-## 13. 큐와 장애 격리
+## 13. 작업 lane과 장애 격리
 
-외부 endpoint가 하나여도 작업 큐는 처음부터 분리한다.
+외부 endpoint가 하나여도 polling worker lane은 분리한다.
 
 ```text
-content-insights.page-summary
-content-insights.storyline
-funding-story.authoring
-funding-story.images
+page-summary
+storyline
+funding-story
 ```
 
-필수 `PAGE_SUMMARY`와 `STORYLINE` 큐는 선택적 이미지 생성 큐와 worker concurrency·resource limit을 공유하지 않는 구성을 우선한다. 같은 컨테이너 이미지를 사용하더라도 배포 command와 queue subscription은 분리할 수 있다.
+필수 `PAGE_SUMMARY`와 `STORYLINE`은 Funding Story 이미지 생성과 worker concurrency·resource limit을 공유하지 않는다. 같은 이미지에서 `--lane`만 분리한다.
 
 기존 durable outbox 원칙을 유지한다.
 
-- API가 작업을 DB에 저장한 뒤 broker 전달을 시도한다.
-- broker 전달 실패 시 accepted 작업은 DB에 남는다.
-- beat/dispatcher가 미전달 작업을 재전달한다.
-- artifact별 advisory lock 또는 동등한 작업 lock으로 중복 실행을 막는다.
+- API가 작업을 DB에 `QUEUED`로 저장한다.
+- polling worker가 `QUEUED` 또는 만료된 `RUNNING` 작업을 회수한다.
+- row lock·90초 lease·30초 갱신으로 중복 실행과 중단 복구를 제어한다.
 - 공급자 429/503과 출력 계약 오류는 제한된 횟수만 내부 재시도한다.
 
 ## 14. 기존 Funding Story 계약 전환
