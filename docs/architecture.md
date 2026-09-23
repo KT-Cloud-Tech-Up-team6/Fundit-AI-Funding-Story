@@ -94,7 +94,7 @@ sequenceDiagram
 |---|---|
 | 예산·일정·팀·프로젝트 정책·예상 어려움 | 채팅 → TTL `Review.story_context` → 답변 요약에 표시 → revision 확인 → HTML |
 | 미제공 선택 정보 | 빈 항목 생략; 금액·날짜·정책 추정 및 생성 차단 없음 |
-| 리워드 상세·가격·옵션 | 생성 시 BE가 전달한 Core 사실 사용 |
+| 리워드 사실·가격·옵션 | 채팅·템플릿에 BE Core 사실 사용; 하단 HTML에 리워드별 상세를 추가하지 않음 |
 | 공통 크라우드 펀딩 안내 | 서비스 고정 콘텐츠; AI 생성 대상 아님 |
 
 ## 4. 전체 생성·완료
@@ -151,7 +151,7 @@ flowchart LR
     RETRY --> PNG[성공 블록 PNG 병렬 렌더링]
     PNG --> UPLOAD[BE 소유 저장소 업로드]
     UPLOAD --> BODY[템플릿 순서 IMAGE 블록]
-    CHAT[확인된 채팅 정보 + Core 리워드] --> HTML[하단 HTML TEXT 블록]
+    CHAT[확인된 채팅 정보] --> HTML[하단 HTML TEXT 블록]
     BODY --> CALLBACK[하나의 generated_body로 완료 전달]
     HTML --> CALLBACK
 ```
@@ -159,8 +159,8 @@ flowchart LR
 | `generated_body.intro_content` | 값·순서 |
 |---|---|
 | `IMAGE` | 업로드 성공한 PNG의 `slot_id`; 템플릿 순서 유지 |
-| 마지막 `TEXT` | 예산 → 일정 → 팀 → 신뢰와 안전(정책·어려움) → 리워드 상세 HTML |
-| 생성 HTML 태그 | `p`, `strong`, `br`, `ul`, `li`; 입력 값 전체 escape, 링크·스크립트·style 없음 |
+| 선택적 마지막 `TEXT` | 확인된 항목만 예산 → 일정 → 팀 → 신뢰와 안전(정책·어려움) 순서로 HTML 구성; 모두 비어 있으면 생략 |
+| 생성 HTML 태그 | `p`, `strong`, `br`; 입력 값 전체 escape, 링크·스크립트·style 없음 |
 
 ```json
 {"cover_image_slot_id":"hero","intro_content":[{"type":"IMAGE","slot_id":"hero"},{"type":"TEXT","value":"<p><strong>프로젝트 예산</strong></p><p>금형 제작에 사용합니다.</p>"}]}

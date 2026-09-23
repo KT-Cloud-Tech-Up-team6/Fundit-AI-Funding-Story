@@ -37,7 +37,7 @@ never reads or writes the BE Core database.
 
 - Renders PNG output with server-side Chromium, Konva, and Pretendard.
 - Uploads generated images to BE-owned storage using short-lived upload targets.
-- Appends escaped lower-page HTML from confirmed chat facts and Core reward details after the PNG references.
+- Appends escaped lower-page HTML from confirmed chat facts after the PNG references when those facts are available.
 - Delivers generated body content, image references, and terminal status to BE through one completion callback.
 
 ## Contract at a glance
