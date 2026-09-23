@@ -1,0 +1,54 @@
+{"event": "run_started", "elapsed_seconds": 0.01, "blocks": 12, "image_slots": 18, "text_model": "gemini-3.8-flash", "image_model": "gemini-3.1-flash-lite-image", "image_concurrency": 2, "policy": {"image_generation_attempts": 5, "image_retry_delay_seconds": 5.0, "image_retry_max_delay_seconds": 30.0, "image_request_interval_seconds": 5.0, "image_request_max_interval_seconds": 20.0, "image_generation_budget_seconds": 3600.0, "image_rate_limit_backend": "redis"}, "template_sha256": "1007ecfdf8617ed48f607d018a6ed36f3f4b9dd82e7756af994a6185ada15904", "input_sha256": "039f556925137dbc84da8f8f84ac317fd50930edbabe63b5ad9dbe6b1b442d8a"}
+{"event": "stage_started", "elapsed_seconds": 0.01, "stage": "copy"}
+{"event": "stage_finished", "elapsed_seconds": 50.89, "stage": "copy", "seconds": 50.885}
+{"event": "stage_started", "elapsed_seconds": 50.91, "stage": "images"}
+{"event": "image_attempt", "elapsed_seconds": 57.95, "slot_id": "hero.image", "attempt": 1, "seconds": 7.032, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 60.79, "slot_id": "problem.image", "attempt": 1, "seconds": 4.862, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 66.32, "slot_id": "product-visual.image", "attempt": 1, "seconds": 5.395, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 66.88, "slot_id": "positioning.image", "attempt": 1, "seconds": 0.943, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 75.18, "slot_id": "positioning.image", "attempt": 2, "seconds": 0.795, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 91.82, "slot_id": "positioning.image", "attempt": 3, "seconds": 5.379, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 98.7, "slot_id": "product-gallery.top-left", "attempt": 1, "seconds": 0.995, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 121.72, "slot_id": "product-gallery.top-left", "attempt": 2, "seconds": 4.61, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 135.06, "slot_id": "product-gallery.top-right", "attempt": 1, "seconds": 1.069, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 159.75, "slot_id": "product-gallery.top-right", "attempt": 2, "seconds": 0.906, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 185.23, "slot_id": "product-gallery.top-right", "attempt": 3, "seconds": 4.784, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 201.52, "slot_id": "product-gallery.bottom-left", "attempt": 1, "seconds": 1.064, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 224.56, "slot_id": "product-gallery.bottom-left", "attempt": 2, "seconds": 0.852, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 249.7, "slot_id": "product-gallery.bottom-left", "attempt": 3, "seconds": 5.131, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 265.65, "slot_id": "product-gallery.bottom-right", "attempt": 1, "seconds": 1.077, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 286.68, "slot_id": "product-gallery.bottom-right", "attempt": 2, "seconds": 1.021, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 311.67, "slot_id": "product-gallery.bottom-right", "attempt": 3, "seconds": 4.967, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 327.79, "slot_id": "comparison.left-image", "attempt": 1, "seconds": 1.074, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 348.87, "slot_id": "comparison.left-image", "attempt": 2, "seconds": 1.053, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 381.96, "slot_id": "comparison.left-image", "attempt": 3, "seconds": 6.577, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 396.43, "slot_id": "comparison.right-image", "attempt": 1, "seconds": 1.026, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 431.61, "slot_id": "comparison.right-image", "attempt": 2, "seconds": 5.706, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 446.97, "slot_id": "promise.image", "attempt": 1, "seconds": 1.057, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 468.04, "slot_id": "promise.image", "attempt": 2, "seconds": 1.051, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 494.18, "slot_id": "promise.image", "attempt": 3, "seconds": 5.616, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 509.55, "slot_id": "benefit-1.image", "attempt": 1, "seconds": 0.977, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 539.86, "slot_id": "benefit-1.image", "attempt": 2, "seconds": 6.21, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 554.73, "slot_id": "benefit-1.image-1", "attempt": 1, "seconds": 1.07, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 581.44, "slot_id": "benefit-1.image-1", "attempt": 2, "seconds": 0.942, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 608.35, "slot_id": "benefit-1.image-1", "attempt": 3, "seconds": 5.06, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 624.32, "slot_id": "benefit-2.image", "attempt": 1, "seconds": 1.029, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 648.06, "slot_id": "benefit-2.image", "attempt": 2, "seconds": 1.033, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 684.94, "slot_id": "benefit-2.image", "attempt": 3, "seconds": 7.234, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 698.63, "slot_id": "benefit-3.image", "attempt": 1, "seconds": 0.908, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 726.05, "slot_id": "benefit-3.image", "attempt": 2, "seconds": 7.405, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 739.65, "slot_id": "rewards.image-0", "attempt": 1, "seconds": 1.003, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 767.65, "slot_id": "rewards.image-0", "attempt": 2, "seconds": 0.947, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 801.9, "slot_id": "rewards.image-0", "attempt": 3, "seconds": 5.657, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 817.34, "slot_id": "rewards.image-1", "attempt": 1, "seconds": 1.09, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 843.98, "slot_id": "rewards.image-1", "attempt": 2, "seconds": 4.357, "outcome": "succeeded"}
+{"event": "image_attempt", "elapsed_seconds": 860.43, "slot_id": "rewards.image-2", "attempt": 1, "seconds": 0.804, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 881.39, "slot_id": "rewards.image-2", "attempt": 2, "seconds": 0.939, "status": 429, "outcome": "failed", "retry_after_seconds": 0}
+{"event": "image_attempt", "elapsed_seconds": 908.62, "slot_id": "rewards.image-2", "attempt": 3, "seconds": 5.042, "outcome": "succeeded"}
+{"event": "image_batch_finished", "elapsed_seconds": 908.63, "expected": 18, "completed": 18, "failed": 0, "attempts": 43, "budget_exhausted": false}
+{"event": "stage_finished", "elapsed_seconds": 908.63, "stage": "images", "seconds": 857.72}
+{"event": "stage_started", "elapsed_seconds": 908.63, "stage": "render"}
+{"event": "stage_finished", "elapsed_seconds": 913.87, "stage": "render", "seconds": 5.247}
+{"event": "stage_started", "elapsed_seconds": 913.87, "stage": "upload"}
+{"event": "stage_finished", "elapsed_seconds": 913.93, "stage": "upload", "seconds": 0.059}
+{"event": "run_finished", "elapsed_seconds": 913.94, "status": "succeeded", "seconds": 913.938, "generation_seconds": 913.937, "completeness": {"passed": true, "errors": [], "expected_blocks": 12, "expected_image_slots": 18, "generated_image_slots": 18, "expected_generated_text_slots": 61, "generated_text_slots": 61, "fixed_text_slots": 29, "source_image_sha256": ["bbbd31ae59e8be95e1a29d585f66fdb582ca0947e5a8dbec21787430f3744bec", "b7d1ec0fd0b37952f0c495f7642474601cccaab3ba3c6efc697ee7f5d328ced4", "06b60b0961eeee6f653678bd8b0b15963090d4212040d28ce5ba6a534e9ffadb", "fc091ce69a2a95dbf1f61d08a5a7943c843811cf1b52b97d823353a7877588b7", "224f595ccfd2e30f0587d56d53699d28b1ec0422c4fac0e4393e76a7e328d845", "6561e688ba4c6f0d62b6eb10efeee2c20db2b2c9fdbeead1cb36d6f7e3607be9", "a9f90e47de2d2f06805d86eb132481583caee7ecb49c54ac3979e5bb2a8e2359", "3eaea860ba56df4f7f6003f7762582b0fccc8a2be5715521375c1349271ade7a", "f98f47d7e549957e781b57ef84faa444c0dce52e4796f58893c1c1cb7d3f2df9", "2323d8617afd04ba7c977b9d4be9c52e42c4128d50efe80f2520e626bdd06916", "2235f68b037f88d6cb77ce16593a1825cf964619ce82c891df2f09f7f1a4f8ef", "555cd6a64da22b47ace9facf3210eedf193bbdb36184896b4b8cfdfc9b80bb1f", "a53cdb7c32e013d2f0ad399e5d18f98fa455de0b84d70c0c001b87d68d9b44d2", "0e417b0dee7ad3dc402e129954fd2477d2dc5ebf7a08bd20347999935b7dc345", "9829c945491bc27a5d9f99e23f2bd35c78ef0406d3127c2eadf03d697f2c570a", "a0d0bbadb3abdbe50c8462a62ab57ac519f32c5cc24604cbce4a3fc9026f5797", "381895532d5e24c9ded717c6a24320fd6195bc917e0592bafc9cbf602f320e8c", "f7d9b6ce7222991d63af45dfc70d83244f3255c6b4534d23064cb979ea4e268c"]}, "target_met": false, "measurement_scope": "local invocation preparation through PNG upload and completion ACK; all retry/pacing waits included", "not_measured": ["deployed API/Celery queue", "real BE/S3 network", "FE display"], "image_model": "gemini-3.1-flash-lite-image", "expected_blocks": 12, "successful_blocks": 12, "failed_slots": [], "stages": {"copy": 50.885, "images": 857.72, "render": 5.247, "upload": 0.059}, "input_kind": "existing fictional LUMI S1 project fixture", "execution": "production planner, real text/image models and PNG renderer; local BE receiver"}

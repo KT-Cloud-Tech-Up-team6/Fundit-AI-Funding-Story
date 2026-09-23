@@ -1,0 +1,214 @@
+{"event": "environment", "git_head": "c3cda2978f4a9ed54407b4d6e05bf19edb303abb", "python": "3.12.14", "platform": "macOS-26.3.1-arm64-arm-64bit", "text_model": "gemini-3.8-flash", "image_model": "gemini-3.1-flash-image", "location": "global", "parallel_runs": 1, "backend": "loopback HTTP with PNG/DTO validation", "scope": "worker_start_to_callback_ack", "excluded": ["queue delay", "deployed BE/storage network latency"], "source_sha256": {"src/funding_story/tasks.py": "8e9cee00a888842e9d923aae0cfa33a792e4b1a281b7c828ea153da538d3a24d", "src/funding_story/provider.py": "64fcf59978b48becae9612269d074004816810569462c1acaf61b2cac2239cd7", "src/funding_story/graph.py": "55f179f7064aa77bbde2d5c79c47714cf52697a4c79e7fb4e5370c41bde7492d", "src/funding_story/renderer.py": "6f8e1f253eeecf4fe5a9851a372e6458c5b1c8a7f62fb2bdbe00e06687adc712", "src/funding_story/resources/template.json": "1007ecfdf8617ed48f607d018a6ed36f3f4b9dd82e7756af994a6185ada15904", "scripts/benchmark_generation_runtime.py": "90530ec8f188042bc3ab92e7894cb0a3a3c080040c4b58f4ce468909f83e2565"}}
+{"event": "run_started", "run": 1, "strengths": 3, "started_at": "2026-09-22T00:44:23.857064+00:00", "expected_blocks": 12, "expected_image_slots": 18}
+{"event": "stage", "run": 1, "stage": "plan", "seconds": 0.001}
+{"event": "model_call", "run": 1, "stage": "structured", "seconds": 78.226, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "structured", "seconds": 94.447, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "structured", "seconds": 75.708, "error_type": null}
+{"event": "stage", "run": 1, "stage": "copy", "seconds": 250.15}
+{"event": "stage", "run": 1, "stage": "source_download", "seconds": 0.013}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 9.136, "error_type": null}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 8.878, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 58.942, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 54.622, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 46.859, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 25.707, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 56.723, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 55.708, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 55.822, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 46.766, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 25.55, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 56.225, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 56.064, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 56.892, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 57.631, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 46.68, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 25.669, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 57.598, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 55.688, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 55.511, "error_type": null}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 46.943, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 1, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 1, "stage": "image", "seconds": 25.885, "error_type": null}
+{"event": "stage", "run": 1, "stage": "images", "seconds": 985.502}
+{"event": "stage", "run": 1, "stage": "render", "seconds": 23.222}
+{"event": "stage", "run": 1, "stage": "upload", "seconds": 0.053}
+{"event": "stage", "run": 1, "stage": "callback", "seconds": 0.003}
+{"event": "run_finished", "run": 1, "strengths": 3, "started_at": "2026-09-22T00:44:23.857064+00:00", "expected_blocks": 12, "expected_image_slots": 18, "status": "succeeded", "successful_blocks": 12, "failed_blocks": [], "total_seconds": 1258.945, "finished_at": "2026-09-22T01:05:22.810768+00:00", "stages": {"plan": 0.001, "copy": 250.15, "source_download": 0.013, "images": 985.502, "render": 23.222, "upload": 0.053, "callback": 0.003}, "image_attempts": 22, "copy_attempts": 3, "provider_retries": 40, "retry_wait_seconds": 870, "uploaded_bytes": 14006725}
+{"event": "run_started", "run": 2, "strengths": 3, "started_at": "2026-09-22T01:05:23.317725+00:00", "expected_blocks": 12, "expected_image_slots": 18}
+{"event": "stage", "run": 2, "stage": "plan", "seconds": 0.005}
+{"event": "model_call", "run": 2, "stage": "structured", "seconds": 13.884, "error_type": null}
+{"event": "model_call", "run": 2, "stage": "structured", "seconds": 37.682, "error_type": null}
+{"event": "stage", "run": 2, "stage": "copy", "seconds": 52.292}
+{"event": "stage", "run": 2, "stage": "source_download", "seconds": 0.004}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 10.983, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 25.09, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 57.403, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.759, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 46.827, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 26.262, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.831, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.801, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.1, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 57.216, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 46.914, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 26.909, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.934, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.117, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.222, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.383, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 46.97, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 24.427, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 56.932, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 58.339, "error_type": null}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 2, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 2, "stage": "image", "seconds": 58.688, "error_type": null}
+{"event": "stage", "run": 2, "stage": "images", "seconds": 995.109}
+{"event": "stage", "run": 2, "stage": "render", "seconds": 23.579}
+{"event": "stage", "run": 2, "stage": "upload", "seconds": 0.056}
+{"event": "stage", "run": 2, "stage": "callback", "seconds": 0.004}
+{"event": "run_finished", "run": 2, "strengths": 3, "started_at": "2026-09-22T01:05:23.317725+00:00", "expected_blocks": 12, "expected_image_slots": 18, "status": "succeeded", "successful_blocks": 12, "failed_blocks": [], "total_seconds": 1071.05, "finished_at": "2026-09-22T01:23:14.370264+00:00", "stages": {"plan": 0.005, "copy": 52.292, "source_download": 0.004, "images": 995.109, "render": 23.579, "upload": 0.056, "callback": 0.004}, "image_attempts": 21, "copy_attempts": 2, "provider_retries": 36, "retry_wait_seconds": 780, "uploaded_bytes": 14459677}
+{"event": "run_started", "run": 3, "strengths": 3, "started_at": "2026-09-22T01:23:14.877318+00:00", "expected_blocks": 12, "expected_image_slots": 18}
+{"event": "stage", "run": 3, "stage": "plan", "seconds": 0.002}
+{"event": "model_call", "run": 3, "stage": "structured", "seconds": 12.796, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 3, "stage": "structured", "seconds": 31.738, "error_type": null}
+{"event": "stage", "run": 3, "stage": "copy", "seconds": 45.236}
+{"event": "stage", "run": 3, "stage": "source_download", "seconds": 0.004}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 9.5, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 55.902, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 55.598, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 56.211, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 60.698, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 55.364, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 56.025, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 57.706, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 46.768, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 27.018, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 56.468, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 55.4, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 56.89, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 57.121, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 46.534, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 25.463, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 55.653, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 55.63, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 56.035, "error_type": null}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 2, "delay_seconds": 30}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 47.028, "error_type": "ClientError"}
+{"event": "provider_retry", "run": 3, "status": 429, "attempt": 1, "delay_seconds": 15}
+{"event": "model_call", "run": 3, "stage": "image", "seconds": 24.284, "error_type": null}
+{"event": "stage", "run": 3, "stage": "images", "seconds": 1017.302}
+{"event": "stage", "run": 3, "stage": "render", "seconds": 22.51}
+{"event": "stage", "run": 3, "stage": "upload", "seconds": 0.053}
+{"event": "stage", "run": 3, "stage": "callback", "seconds": 0.004}
+{"event": "run_finished", "run": 3, "strengths": 3, "started_at": "2026-09-22T01:23:14.877318+00:00", "expected_blocks": 12, "expected_image_slots": 18, "status": "succeeded", "successful_blocks": 12, "failed_blocks": [], "total_seconds": 1085.111, "finished_at": "2026-09-22T01:41:19.992788+00:00", "stages": {"plan": 0.002, "copy": 45.236, "source_download": 0.004, "images": 1017.302, "render": 22.51, "upload": 0.053, "callback": 0.004}, "image_attempts": 21, "copy_attempts": 2, "provider_retries": 38, "retry_wait_seconds": 825, "uploaded_bytes": 14280290}
+{"event": "summary", "attempted_count": 3, "successful_count": 3, "incomplete_count": 0, "mean_seconds": 1138.369, "p95_observed_seconds": null, "max_observed_seconds": 1258.945}
