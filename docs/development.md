@@ -111,6 +111,20 @@ Dockerfile에 uv, 의존성, 검증된 폰트, Chromium을 포함한다. 기본 
 
 컨테이너에서는 localhost가 PostgreSQL을 가리키지 않는다. 네트워크에 맞춰 `DB_*`, `PROJECT_SERVICE_BASE_URL`, 내부 토큰, Provider 인증을 주입한다. 최종 객체 저장소는 BE가 발급하는 presigned URL로만 접근하므로 AI 저장소 설정은 없다.
 
+## GitHub Actions 이미지 게시
+
+PR에서는 기존 테스트가 통과한 뒤 `linux/amd64` Docker 이미지를 빌드한다. AWS 인증은 수행하지 않는다. `main` push에서는 테스트 통과 후 GitHub OIDC로 임시 인증해 AI 전용 ECR에 `sha-<commit SHA>` 태그로 이미지를 올린다.
+
+| 게시 설정 | 인프라팀 확정값 |
+|---|---|
+| push 브랜치 | `main` |
+| AWS 리전 | `ap-northeast-2` |
+| ECR 리포지토리 | `899957568205.dkr.ecr.ap-northeast-2.amazonaws.com/fundit-ai-funding-story` |
+| IAM Role | `arn:aws:iam::899957568205:role/fundit-ai-funding-story-ci-role` |
+| 이미지 태그 | `sha-<commit SHA>` |
+
+게시 워크플로에는 `environment:`와 AWS Access Key를 설정하지 않는다. API·worker의 배포 환경 변수와 Secret은 위 [설치와 설정](#설치와-설정) 및 [EKS Provider 인증 계약](aws-eks-provider-auth.md)을 따른다. DB migration과 실제 EKS 배포는 별도 Job·GitOps에서 진행한다.
+
 ## PostgreSQL 운영 전환 계약
 
 | 환경 | PostgreSQL |
