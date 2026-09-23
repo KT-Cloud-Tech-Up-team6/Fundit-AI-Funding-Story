@@ -111,6 +111,18 @@ Dockerfile에 uv, 의존성, 검증된 폰트, Chromium을 포함한다. 기본 
 
 컨테이너에서는 localhost가 PostgreSQL을 가리키지 않는다. 네트워크에 맞춰 `DB_*`, `PROJECT_SERVICE_BASE_URL`, 내부 토큰, Provider 인증을 주입한다. 최종 객체 저장소는 BE가 발급하는 presigned URL로만 접근하므로 AI 저장소 설정은 없다.
 
+## GitHub Actions 이미지 게시
+
+PR에서는 기존 테스트가 통과한 뒤 `linux/amd64` Docker 이미지를 빌드한다. `main` push 또는 `main`에서 수동 실행한 워크플로는 테스트 통과 후 AI 전용 ECR에 `sha-<commit SHA>` 태그로 이미지를 올린다. 다음 GitHub 저장소 변수가 모두 설정되기 전에는 게시 job을 건너뛴다.
+
+| GitHub 저장소 변수 | 인프라팀 확인값 |
+|---|---|
+| `AWS_REGION` | AI ECR 리전 |
+| `AWS_ROLE_ARN` | 이 GitHub 저장소의 `main` 브랜치를 OIDC로 신뢰하고 AI ECR에 push할 수 있는 IAM Role ARN |
+| `ECR_REPOSITORY` | AI 전용 ECR 리포지토리 이름/경로. 레지스트리 호스트명은 제외 |
+
+이 값들은 이미지 **게시용**이다. API·worker의 배포 환경 변수와 Secret은 위 [설치와 설정](#설치와-설정) 및 [EKS Provider 인증 계약](aws-eks-provider-auth.md)을 따른다. DB migration과 실제 배포는 별도 Job·GitOps에서 진행한다.
+
 ## PostgreSQL 운영 전환 계약
 
 | 환경 | PostgreSQL |
