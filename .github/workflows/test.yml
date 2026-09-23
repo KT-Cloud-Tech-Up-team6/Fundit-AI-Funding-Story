@@ -1,5 +1,5 @@
 name: AI contracts
-on: [push, pull_request, workflow_dispatch]
+on: [push, pull_request]
 permissions:
   contents: read
 jobs:
@@ -31,15 +31,8 @@ jobs:
       - name: Build Docker image
         run: docker build --platform linux/amd64 --tag "fundit-ai-funding-story:pr-${GITHUB_SHA}" .
 
-  # GitHub repository variables: AWS_REGION, AWS_ROLE_ARN, ECR_REPOSITORY.
-  # ECR_REPOSITORY is the AI repository name/path, without the registry hostname.
   publish-image:
-    if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/main' &&
-      vars.AWS_REGION != '' &&
-      vars.AWS_ROLE_ARN != '' &&
-      vars.ECR_REPOSITORY != ''
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -47,9 +40,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
-      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      ECR_REPOSITORY: fundit-ai-funding-story
       IMAGE_TAG: sha-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -58,8 +49,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::899957568205:role/fundit-ai-funding-story-ci-role
+          aws-region: ap-northeast-2
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
