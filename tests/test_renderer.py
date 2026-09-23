@@ -54,3 +54,15 @@ def test_konva_exports_real_png_at_template_size():
     assert image.size == (860, 1724)
     assert image.getbbox()
     assert result["layout"]["metrics"]
+
+
+def test_single_price_reward_template_keeps_brand_accent_on_all_cards():
+    block = copy.deepcopy(CATALOG["rewards"])
+    for node in block["nodes"]:
+        if node["kind"] == "image":
+            node.update(pending=True, assetId="")
+    rendered = render_scene(scene(block), {})[0]
+    image = Image.open(io.BytesIO(rendered["bytes"]))
+    for divider_y, label_y in ((697, 760), (1055, 1118), (1411, 1474)):
+        assert image.getpixel((330, divider_y)) == image.getpixel((330, label_y))
+        assert image.getpixel((330, divider_y)) != image.getpixel((330, divider_y - 20))

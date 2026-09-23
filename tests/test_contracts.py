@@ -16,7 +16,7 @@ from funding_story.models import (
     RunCompletionRequest,
     SuccessfulImage,
 )
-from funding_story.planner import CATEGORIES, TEMPLATE, plan, requirements, validate_copy
+from funding_story.planner import CATALOG, CATEGORIES, TEMPLATE, plan, requirements, validate_copy
 from funding_story.provider import transient_call
 
 
@@ -99,11 +99,15 @@ def test_template_uses_price_only_and_never_exposes_quantity_as_product_count():
         "rewards",
     ]
     reward_nodes = {node["id"]: node for node in scene["blocks"][-1]["nodes"]}
+    template_nodes = {node["id"]: node for node in CATALOG["rewards"]["nodes"]}
+    assert reward_nodes.keys() == template_nodes.keys()
     assert not any(node_id.startswith("rewards.normal-") for node_id in reward_nodes)
+    assert not any(node_id.startswith("rewards.sale-") for node_id in reward_nodes)
     assert not any(node_id.startswith("rewards.normal-") for node_id in fixed)
-    assert fixed["rewards.sale-label-0"] == "가격"
-    assert fixed["rewards.sale-price-0"] == "149,000원"
-    assert reward_nodes["rewards.sale-label-bg-0"]["y"] == 749
+    assert fixed["rewards.price-label-0"] == "가격"
+    assert fixed["rewards.price-value-0"] == "149,000원"
+    assert reward_nodes["rewards.price-label-bg-0"]["y"] == 749
+    assert reward_nodes["rewards.price-divider-0"]["fill"] == "brand-light"
     serialized = json.dumps(scene, ensure_ascii=False)
     assert "100개" not in serialized
 
@@ -128,7 +132,7 @@ def test_generation_plan_allows_a_project_without_source_images():
     project = project_input().model_copy(update={"source_images": []})
     scene, fixed = plan(project, review())
     assert scene["blocks"]
-    assert fixed["rewards.sale-price-0"] == "149,000원"
+    assert fixed["rewards.price-value-0"] == "149,000원"
 
 
 @pytest.mark.parametrize("count", [1, 2, 3])
@@ -138,10 +142,11 @@ def test_reward_cards_keep_placeholders_without_normal_price_row(count):
     nodes = {node["id"]: node for node in scene["blocks"][-1]["nodes"]}
     assert not any(node_id.startswith("rewards.normal-") for node_id in nodes)
     assert not any(node_id.startswith("rewards.normal-") for node_id in fixed)
+    assert not any(node_id.startswith("rewards.sale-") for node_id in nodes)
     assert [fixed[f"rewards.name-{index}"] for index in range(count, 3)] == [
         "미등록 선물"
     ] * (3 - count)
-    assert [fixed[f"rewards.sale-price-{index}"] for index in range(count, 3)] == [
+    assert [fixed[f"rewards.price-value-{index}"] for index in range(count, 3)] == [
         "—"
     ] * (3 - count)
 

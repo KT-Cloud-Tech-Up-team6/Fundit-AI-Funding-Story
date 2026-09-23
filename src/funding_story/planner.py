@@ -69,14 +69,6 @@ def plan(project: ProjectInput, review: Review):
     for block in blocks:
         if block["id"] == "positioning":
             block["label"] = "제품 가치"
-        if block["id"] != "rewards":
-            continue
-        block["nodes"] = [
-            node for node in block["nodes"] if not node["id"].startswith("rewards.normal-")
-        ]
-        for node in block["nodes"]:
-            if node["id"].startswith("rewards.sale-"):
-                node["y"] -= 35
     fixed = {
         n["id"]: n["text"]
         for b in blocks
@@ -91,8 +83,8 @@ def plan(project: ProjectInput, review: Review):
         reward = project.rewards[i] if i < len(project.rewards) else None
         for role, value in {
             "name": reward.name if reward else "미등록 선물",
-            "sale-label": "가격",
-            "sale-price": f"{reward.price:,}원" if reward else "—",
+            "price-label": "가격",
+            "price-value": f"{reward.price:,}원" if reward else "—",
         }.items():
             fixed[f"rewards.{role}-{i}"] = value
     for block in blocks:
