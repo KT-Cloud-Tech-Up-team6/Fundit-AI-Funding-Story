@@ -98,10 +98,12 @@ def test_template_uses_price_only_and_never_exposes_quantity_as_product_count():
         "benefit-3",
         "rewards",
     ]
-    assert fixed["rewards.normal-label-0"] == ""
-    assert fixed["rewards.normal-price-0"] == ""
+    reward_nodes = {node["id"]: node for node in scene["blocks"][-1]["nodes"]}
+    assert not any(node_id.startswith("rewards.normal-") for node_id in reward_nodes)
+    assert not any(node_id.startswith("rewards.normal-") for node_id in fixed)
     assert fixed["rewards.sale-label-0"] == "가격"
     assert fixed["rewards.sale-price-0"] == "149,000원"
+    assert reward_nodes["rewards.sale-label-bg-0"]["y"] == 749
     serialized = json.dumps(scene, ensure_ascii=False)
     assert "100개" not in serialized
 
@@ -116,6 +118,7 @@ def test_generation_requirements_preserve_block_categories_and_all_slots():
     by_id = {item["id"]: item for item in requirements(scene, fixed)}
     assert by_id["hero"]["category_ids"] == ["main-visual"]
     assert by_id["rewards"]["category_ids"] == ["purchase-option"]
+    assert all("reference" not in text for block in by_id.values() for text in block["texts"])
 
     with pytest.raises(ValueError, match="슬롯 ID"):
         validate_copy(CopyResult(texts={}, image_prompts={}, summary="", storyline=""), scene, fixed)
@@ -126,6 +129,53 @@ def test_generation_plan_allows_a_project_without_source_images():
     scene, fixed = plan(project, review())
     assert scene["blocks"]
     assert fixed["rewards.sale-price-0"] == "149,000원"
+
+
+@pytest.mark.parametrize("count", [1, 2, 3])
+def test_reward_cards_keep_placeholders_without_normal_price_row(count):
+    project = project_input().model_copy(update={"rewards": project_input().rewards[:count]})
+    scene, fixed = plan(project, review())
+    nodes = {node["id"]: node for node in scene["blocks"][-1]["nodes"]}
+    assert not any(node_id.startswith("rewards.normal-") for node_id in nodes)
+    assert not any(node_id.startswith("rewards.normal-") for node_id in fixed)
+    assert [fixed[f"rewards.name-{index}"] for index in range(count, 3)] == [
+        "미등록 선물"
+    ] * (3 - count)
+    assert [fixed[f"rewards.sale-price-{index}"] for index in range(count, 3)] == [
+        "—"
+    ] * (3 - count)
+
+
+def test_non_appliance_copy_requirements_do_not_contain_vacuum_template_facts():
+    project = project_input()
+    project = project.model_copy(
+        update={
+            "title": "수제 쿠키",
+            "category": "식품 / 과자",
+            "rewards": [
+                project.rewards[0].model_copy(
+                    update={"name": "쿠키 한 상자", "description": "쿠키 12개", "price": 12000}
+                )
+            ],
+        }
+    )
+    review = Review(
+        reply="확인",
+        product="수제 쿠키",
+        story="가족과 나누는 간식",
+        strengths=[
+            {"id": str(index), "title": title, "description": "입력된 재료와 포장 정보"}
+            for index, title in enumerate(("신선한 재료", "다양한 맛", "편리한 포장"))
+        ],
+        problems=[{"heading": str(index), "body": "간식 선택의 어려움"} for index in range(4)],
+    )
+    scene, fixed = plan(project, review)
+    points = [block for block in scene["blocks"] if block["id"].startswith("benefit-")]
+    assert len({block["templateBlockId"] for block in points}) == 3
+    prompt_slots = json.dumps(requirements(scene, fixed), ensure_ascii=False)
+    assert all(word not in prompt_slots for word in ("청소", "먼지통", "브러시", "무선"))
+    assert "신선한 재료" in prompt_slots
+    assert "쿠키 한 상자" in prompt_slots
 
 
 def test_removed_legacy_fields_are_rejected_at_the_dto_boundary():

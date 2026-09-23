@@ -8,6 +8,41 @@ TEMPLATE = json.loads((Path(__file__).parent / "resources/template.json").read_t
 COMPOSITION = TEMPLATE["composition"]
 CATALOG = {b["id"]: b for b in TEMPLATE["scene"]["blocks"]}
 CATEGORIES = {category["id"]: category for category in TEMPLATE["blockLibrary"]["categories"]}
+POINT_LAYOUTS = (
+    "feature-wireless",
+    "feature-slim",
+    "feature-handling",
+    "feature-dustbin",
+    "feature-ergonomic",
+    "feature-brush",
+)
+
+
+def _image_description(block, node, project, review):
+    block_id = block["id"]
+    if block_id.startswith("benefit-"):
+        strength = review.strengths[int(block_id.rsplit("-", 1)[1]) - 1]
+        return f"제품의 강점 '{strength.title}'을 보여주는 장면. 확인된 내용: {strength.description}"
+    if block_id == "rewards":
+        index = int(node["id"].rsplit("-", 1)[1])
+        if index < len(project.rewards):
+            reward = project.rewards[index]
+            return f"등록된 선물 '{reward.name}'의 구성 이미지. 구성 설명: {reward.description}"
+        return "미등록 선물의 빈 이미지 영역"
+    descriptions = {
+        "hero.image": "입력된 제품의 형태와 용도를 보여주는 대표 이미지",
+        "problem.image": "확인된 일상 불편을 보여주는 장면. 특정 경쟁 제품은 만들지 않음",
+        "product-visual.image": "입력된 제품의 형태를 보여주는 단독 이미지",
+        "positioning.image": "입력된 제품을 실제 사용 맥락에 배치한 이미지",
+        "product-gallery.top-left": "입력된 제품의 전체 형태",
+        "product-gallery.top-right": "입력된 제품의 다른 각도",
+        "product-gallery.bottom-left": "입력된 제품의 사용 장면",
+        "product-gallery.bottom-right": "입력된 제품의 확인된 세부 특징",
+        "comparison.left-image": "확인된 사용 전 불편 상황. 경쟁 제품이나 성능 수치를 만들지 않음",
+        "comparison.right-image": "입력된 제품으로 해결하는 사용 상황. 확인되지 않은 성능은 표현하지 않음",
+        "promise.image": "입력된 제품과 확인된 핵심 강점을 함께 보여주는 이미지",
+    }
+    return descriptions[node["id"]]
 
 
 def plan(project: ProjectInput, review: Review):
@@ -19,20 +54,7 @@ def plan(project: ProjectInput, review: Review):
         raise ValueError("불편한 상황 4개, 핵심 강점 3개 이상과 리워드를 확인해 주세요.")
     blocks = [copy.deepcopy(CATALOG[key]) for key in COMPOSITION["required_before_points"]]
     for index, strength in enumerate(review.strengths):
-        desc = strength.title + strength.description
-        name = (
-            "feature-wireless"
-            if "무선" in desc
-            else "feature-dustbin"
-            if "먼지통" in desc
-            else "feature-handling"
-            if "조작" in desc
-            else "feature-ergonomic"
-            if "허리" in desc or "스틱" in desc
-            else "feature-brush"
-            if "브러시" in desc or "헤드" in desc
-            else "feature-slim"
-        )
+        name = POINT_LAYOUTS[index % len(POINT_LAYOUTS)]
         block = copy.deepcopy(CATALOG[name])
         block["templateBlockId"] = name
         block["strengthId"] = strength.id
@@ -44,6 +66,17 @@ def plan(project: ProjectInput, review: Review):
                 node["text"] = f"Point {index + 1:02d}"
         blocks.append(block)
     blocks.extend(copy.deepcopy(CATALOG[key]) for key in COMPOSITION["required_after_points"])
+    for block in blocks:
+        if block["id"] == "positioning":
+            block["label"] = "제품 가치"
+        if block["id"] != "rewards":
+            continue
+        block["nodes"] = [
+            node for node in block["nodes"] if not node["id"].startswith("rewards.normal-")
+        ]
+        for node in block["nodes"]:
+            if node["id"].startswith("rewards.sale-"):
+                node["y"] -= 35
     fixed = {
         n["id"]: n["text"]
         for b in blocks
@@ -58,9 +91,7 @@ def plan(project: ProjectInput, review: Review):
         reward = project.rewards[i] if i < len(project.rewards) else None
         for role, value in {
             "name": reward.name if reward else "미등록 선물",
-            "normal-label": "",
             "sale-label": "가격",
-            "normal-price": "",
             "sale-price": f"{reward.price:,}원" if reward else "—",
         }.items():
             fixed[f"rewards.{role}-{i}"] = value
@@ -71,6 +102,7 @@ def plan(project: ProjectInput, review: Review):
             if node["kind"] == "image":
                 node.pop("sourceCrop", None)
                 node.pop("zoom", None)
+                node["desc"] = _image_description(block, node, project, review)
                 node["assetId"] = ""
                 node["pending"] = True
     scene = {
@@ -93,13 +125,19 @@ def requirements(scene, fixed):
             "texts": [
                 {
                     "id": n["id"],
-                    "reference": n["text"],
+                    "reference_lines": n["text"].count("\n") + 1,
                     "layout": n.get("copyFit", {}),
                     "font_size": n["fontSize"],
                     "width_px": n["width"],
-                    "purpose": TEMPLATE["purposes"].get(
-                        n["id"].replace(b["id"] + ".", b.get("templateBlockId", b["id"]) + "."),
-                        "블록 역할에 맞는 짧은 원고",
+                    "purpose": (
+                        "확인된 강점을 짧은 두 줄 명사구로 표현. 문장형 종결·마침표는 사용하지 않음"
+                        if n["id"].startswith("hero.detail-")
+                        else TEMPLATE["purposes"].get(
+                            n["id"].replace(
+                                b["id"] + ".", b.get("templateBlockId", b["id"]) + "."
+                            ),
+                            "블록 역할에 맞는 짧은 원고",
+                        )
                     ),
                     "max_chars": max(
                         8,
