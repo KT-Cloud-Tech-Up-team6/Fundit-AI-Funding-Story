@@ -124,6 +124,9 @@ def test_reward_name_divider_and_price_have_equal_spacing_and_centered_badge():
         value = nodes[f"rewards.price-value-{index}"]
 
         assert divider["y"] + divider["height"] / 2 == image["y"] + image["height"] / 2
+        assert (name["x"], name["width"], name["align"]) == (
+            divider["x"], divider["width"], "center"
+        )
         assert divider["y"] - (name["y"] + name["height"]) == 64
         assert label["y"] - (divider["y"] + divider["height"]) == 64
         assert (label["x"], label["width"], label["align"]) == (
