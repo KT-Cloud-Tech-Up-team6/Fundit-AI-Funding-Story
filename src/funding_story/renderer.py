@@ -101,6 +101,8 @@ def measure_scene(scene):
 
 
 def render_scene(scene, sources, block_ids=None):
+    if block_ids is not None:
+        scene = {**scene, "blocks": [block for block in scene["blocks"] if block["id"] in block_ids]}
     scene = _prepared(scene)
     encoded_sources = {}
     for block in scene["blocks"]:
@@ -108,15 +110,11 @@ def render_scene(scene, sources, block_ids=None):
             aid = node.get("assetId")
             if node["kind"] == "image" and aid and not node.get("pending") and aid not in encoded_sources:
                 blob, mime = sources[aid]
-                encoded_sources[aid] = (
-                    "data:" + mime + ";base64," + base64.b64encode(blob).decode()
-                )
+                encoded_sources[aid] = "data:" + mime + ";base64," + base64.b64encode(blob).decode()
     results = []
     with browser_page() as page:
         page.evaluate("sources => {window.sceneSources = sources;}", encoded_sources)
         for block in scene["blocks"]:
-            if block_ids is not None and block["id"] not in block_ids:
-                continue
             result = page.evaluate("async block => renderBlock(block,window.sceneSources)", block)
             results.append(
                 {

@@ -97,7 +97,7 @@ def test_finalized_callback_is_never_replaced(monkeypatch, status, failure):
     )
     with httpx.Client(transport=httpx.MockTransport(receive)) as client:
         monkeypatch.setattr(media.httpx, "post", client.post)
-        tasks.execute.run(RUN_ID)
+        tasks.execute(RUN_ID)
 
     assert len(payloads) == (3 if failure in ("recover", "exhaust") else 1)
     assert all(payload == original_payload for payload in payloads)
