@@ -106,10 +106,30 @@ def test_template_uses_price_only_and_never_exposes_quantity_as_product_count():
     assert not any(node_id.startswith("rewards.normal-") for node_id in fixed)
     assert fixed["rewards.price-label-0"] == "가격"
     assert fixed["rewards.price-value-0"] == "149,000원"
-    assert reward_nodes["rewards.price-label-bg-0"]["y"] == 749
+    assert reward_nodes["rewards.price-label-bg-0"]["y"] == 775
     assert reward_nodes["rewards.price-divider-0"]["fill"] == "brand-light"
     serialized = json.dumps(scene, ensure_ascii=False)
     assert "100개" not in serialized
+
+
+def test_reward_name_divider_and_price_have_equal_spacing_and_centered_badge():
+    nodes = {node["id"]: node for node in CATALOG["rewards"]["nodes"]}
+    for index in range(3):
+        image = nodes[f"rewards.image-{index}"]
+        name = nodes[f"rewards.name-{index}"]
+        divider = nodes[f"rewards.price-divider-{index}"]
+        background = nodes[f"rewards.price-label-bg-{index}"]
+        label = nodes[f"rewards.price-label-{index}"]
+        card = nodes[f"rewards.card-{index}"]
+        value = nodes[f"rewards.price-value-{index}"]
+
+        assert divider["y"] + divider["height"] / 2 == image["y"] + image["height"] / 2
+        assert divider["y"] - (name["y"] + name["height"]) == 64
+        assert label["y"] - (divider["y"] + divider["height"]) == 64
+        assert (label["x"], label["width"], label["align"]) == (
+            background["x"], background["width"], "center"
+        )
+        assert value["y"] + value["height"] <= card["y"] + card["height"]
 
 
 def test_generation_requirements_preserve_block_categories_and_all_slots():

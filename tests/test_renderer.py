@@ -63,6 +63,6 @@ def test_single_price_reward_template_keeps_brand_accent_on_all_cards():
             node.update(pending=True, assetId="")
     rendered = render_scene(scene(block), {})[0]
     image = Image.open(io.BytesIO(rendered["bytes"]))
-    for divider_y, label_y in ((697, 760), (1055, 1118), (1411, 1474)):
+    for divider_y, label_y in ((714, 780), (1072, 1138), (1428, 1494)):
         assert image.getpixel((330, divider_y)) == image.getpixel((330, label_y))
         assert image.getpixel((330, divider_y)) != image.getpixel((330, divider_y - 20))
