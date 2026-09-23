@@ -8,7 +8,7 @@
 - `message_id`, `revision`, `idempotency_key`, 프로젝트 범위, 세션당 활성 run
 - 구형 `/v1`, asset, export, run 조회·retry 경로 제거
 - `normal_price`, `product_count`, `asset_id`, 미정의 DTO 필드 거부
-- 리워드 `quantity`와 표시 개수 분리, 원본 템플릿의 단일 `price`·브랜드 톤 가격 구분선·1~3개 선물 카드
+- 리워드 `quantity`와 표시 개수 분리, 원본 템플릿의 단일 `price`·브랜드 톤 가격 구분선·이미지/간격/라벨 정렬·1~3개 선물 카드
 - 이미지 슬롯 내부 재시도와 `partially_succeeded`/`failed` callback
 - 이미지 호출 동시성 상한·429 즉시 신규 호출 대기/동시성 축소·실패 슬롯 우선 재시도·실행 예산·완료 역전 시 슬롯 대응
 - PostgreSQL 공유 페이싱·병렬 429의 중복 백오프 방지·연속 성공 후 회복·worker lease 갱신/만료·DB 장애 시 호출 차단
@@ -34,7 +34,7 @@ uv build
 
 | 실행 결과 (2026-09-23) | 결과 |
 |---|---|
-| `pytest -q` | 157 passed; Starlette 의존성 deprecation warning 1건 |
+| `pytest -q` | 158 passed; Starlette 의존성 deprecation warning 1건 |
 | `ruff check src tests scripts` | 통과 |
 | `uv build` | sdist·wheel 생성 통과 |
 
