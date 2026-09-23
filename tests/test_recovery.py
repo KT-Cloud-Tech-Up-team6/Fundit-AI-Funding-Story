@@ -157,8 +157,7 @@ def test_generation_retries_failed_image_then_reports_partial_success(monkeypatc
     assert backend.completion.status == "partially_succeeded"
     assert [failure.slot_id for failure in backend.completion.failed_slots] == ["benefit"]
     assert [image.slot_id for image in backend.completion.successful_images] == ["hero"]
-    assert backend.completion.generated_body.intro_content[-1].type == "TEXT"
-    assert "본품 1대" in backend.completion.generated_body.intro_content[-1].value
+    assert [block.type for block in backend.completion.generated_body.intro_content] == ["IMAGE"]
     assert application.delivered == (RUN_1, "partially_succeeded")
 
 

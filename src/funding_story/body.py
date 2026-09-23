@@ -5,7 +5,6 @@ from html import escape
 from .models import (
     GeneratedBody,
     ImageContentBlock,
-    RewardFact,
     StoryContext,
     SuccessfulImage,
     TextContentBlock,
@@ -39,7 +38,7 @@ def _heading(label: str) -> str:
     return "<p><strong>" + escape(label) + "</strong></p>"
 
 
-def information_html(context: StoryContext, rewards: list[RewardFact]) -> str:
+def information_html(context: StoryContext) -> str:
     parts = []
     for key, label in SECTIONS[:3]:
         if value := getattr(context, key):
@@ -49,30 +48,19 @@ def information_html(context: StoryContext, rewards: list[RewardFact]) -> str:
         for key, label in SECTIONS[3:]:
             if value := getattr(context, key):
                 parts.extend((_heading(label), _paragraphs(value)))
-    # The platform crowdfunding notice is a fixed service component, never invented by AI.
-    if rewards:
-        parts.append(_heading("리워드 상세 설명"))
-    for reward in rewards:
-        parts.extend(
-            (_heading(reward.name), _paragraphs(reward.description), _paragraphs(f"가격: {reward.price:,}원"))
-        )
-        if reward.options:
-            parts.append("<ul>")
-            for option in reward.options:
-                parts.append("<li>" + escape(f"{option.group_name}: {', '.join(option.values)}") + "</li>")
-            parts.append("</ul>")
     return "".join(parts)
 
 
-def generated_body(
-    images: list[SuccessfulImage], context: StoryContext, rewards: list[RewardFact]
-) -> GeneratedBody:
+def generated_body(images: list[SuccessfulImage], context: StoryContext) -> GeneratedBody:
     if not images:
         raise ValueError("상세페이지에는 성공한 PNG가 필요합니다.")
+    html = information_html(context)
+    content: list[TextContentBlock | ImageContentBlock] = [
+        ImageContentBlock(type="IMAGE", slot_id=image.slot_id) for image in images
+    ]
+    if html:
+        content.append(TextContentBlock(type="TEXT", value=html))
     return GeneratedBody(
         cover_image_slot_id=images[0].slot_id,
-        intro_content=[
-            *[ImageContentBlock(type="IMAGE", slot_id=image.slot_id) for image in images],
-            TextContentBlock(type="TEXT", value=information_html(context, rewards)),
-        ],
+        intro_content=content,
     )

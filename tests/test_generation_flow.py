@@ -118,7 +118,7 @@ def test_chat_confirm_real_parallel_png_html_and_completion(monkeypatch, tmp_pat
     assert completion.generated_body.intro_content[-1].type == "TEXT"
     html = completion.generated_body.intro_content[-1].value
     assert "금형 제작에 사용합니다." in html and "11월 중순 제작" in html
-    assert "본품 1대" in html
+    assert "리워드 상세 설명" not in html and "본품 1대" not in html
     assert set(repository.get(run["run_id"])["data"]) == {"status", "confirmed_revision", "error"}
     assert "generated_body" not in json.dumps(repository.records, ensure_ascii=False)
 
