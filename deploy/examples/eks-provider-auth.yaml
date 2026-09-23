@@ -1,0 +1,67 @@
+# Contract example only. Fundit-GitOps owns the applied manifest and environment-specific values.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: funding-story-ai
+  namespace: dev
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funding-story-ai
+  namespace: dev
+spec:
+  template:
+    spec:
+      serviceAccountName: funding-story-ai
+      automountServiceAccountToken: false
+      containers:
+        - name: funding-story-ai
+          env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /var/run/secrets/google-wif/credentials.json
+            - name: MODEL_PROFILE
+              value: runtime
+            - name: OPENAI_IDENTITY_PROVIDER_ID
+              value: <OPENAI_PLATFORM_PROVIDER_ID>
+            - name: OPENAI_SERVICE_ACCOUNT_ID
+              value: <OPENAI_PLATFORM_SERVICE_ACCOUNT_ID>
+            - name: OPENAI_WIF_AUDIENCE
+              value: https://api.openai.com/v1
+            - name: OPENAI_WIF_TOKEN_FILE
+              value: /var/run/secrets/openai-wif/token
+            - name: OPENAI_WIF_EXPECTED_SUBJECT
+              value: system:serviceaccount:dev:funding-story-ai
+          volumeMounts:
+            - name: openai-wif-token
+              mountPath: /var/run/secrets/openai-wif
+              readOnly: true
+            - name: google-wif-token
+              mountPath: /var/run/secrets/google-identity
+              readOnly: true
+            - name: google-wif-config
+              mountPath: /var/run/secrets/google-wif
+              readOnly: true
+      volumes:
+        - name: openai-wif-token
+          projected:
+            defaultMode: 0400
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: https://api.openai.com/v1
+                  expirationSeconds: 3600
+        - name: google-wif-token
+          projected:
+            defaultMode: 0400
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: <GCP_EKS_OIDC_AUDIENCE>
+                  expirationSeconds: 3600
+        - name: google-wif-config
+          secret:
+            secretName: funding-story-ai-google-wif
+            items:
+              - key: credentials.json
+                path: credentials.json

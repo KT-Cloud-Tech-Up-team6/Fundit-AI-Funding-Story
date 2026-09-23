@@ -29,6 +29,7 @@
 ### 템플릿 생성
 
 - 설정된 Funding Story 템플릿 블록에 문구와 이미지를 생성합니다.
+- 이미지 슬롯 생성·블록 PNG 렌더링을 제한 병렬 처리하며 템플릿 순서를 유지합니다.
 - 확인된 강점과 선택 제품 정보를 사용하며 근거 없는 내용을 추가하지 않습니다.
 - 이미지·렌더링 슬롯은 내부적으로 재시도하고, 필요한 경우 사용 가능한 부분 결과를 전달합니다.
 
@@ -36,6 +37,7 @@
 
 - 서버 Chromium·Konva·Pretendard로 PNG를 렌더링합니다.
 - 단기 업로드 대상으로 생성 이미지를 BE 소유 저장소에 업로드합니다.
+- 확인된 채팅 정보와 Core 리워드 상세를 안전한 하단 HTML로 구성해 PNG 참조 뒤에 배치합니다.
 - 생성 본문·이미지 참조·종료 상태를 하나의 완료 callback으로 BE에 전달합니다.
 
 ## 계약 요약
@@ -84,12 +86,12 @@ flowchart LR
     FE -->|run 조회| BE
 ```
 
-- 세션·채팅·run 제어 상태·revision·멱등 정보는 TTL Redis에만 둡니다.
+- 세션·채팅·run 제어 상태·revision·멱등 정보는 PostgreSQL TTL row에 둡니다.
 - 프로젝트 사실·원본 이미지·최종 PNG·공개 본문·최종 run 상태는 BE가 소유합니다.
 - 원본·중간 생성·렌더링 이미지는 작업 중 AI 프로세스 메모리에서만 사용합니다.
 - Funding Story 입력 snapshot, 생성 문서, 중간 이미지, LangGraph checkpoint는 PostgreSQL에
   저장하지 않습니다.
-- PostgreSQL은 별도 기능인 Content Insights에만 유지합니다.
+- Funding Story 제어 상태와 Content Insights는 같은 AI PostgreSQL 논리 DB를 사용합니다.
 - 로그·trace에는 사용자 원문, Core DTO, 프롬프트, 생성 본문, 이미지 참조, 서명 URL을
   남기지 않습니다.
 
@@ -120,13 +122,16 @@ Service가 소유하고 FE는 Project Service를 통해 조회하며, FE가 AI e
 | `GET` | `/api/v1/ai/content-insight-runs/{run_id}` | artifact 상태·결과 조회 |
 | `POST` | `/api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry` | 재시도 가능한 artifact 단건 재시도 |
 
-Content Insights는 자체 PostgreSQL artifact 상태·queue·revision 확인·재시도 생명주기를
-사용하며 Funding Story의 TTL 세션 상태와 분리됩니다.
+Content Insights는 자체 PostgreSQL artifact 상태·작업 lane·revision 확인·재시도 생명주기를
+사용하며 Funding Story 세션과는 논리적으로 분리됩니다.
 
 ## 로컬 실행
 
-Python 3.12.14, [uv](https://docs.astral.sh/uv/), Docker가 필요합니다. 실제 모델 호출에는
-Google Cloud 인증이 필요합니다.
+Python 3.12.14, [uv](https://docs.astral.sh/uv/), Docker가 필요합니다. 실제 호출에는 텍스트용
+Google Cloud 인증이 필요합니다. `.env.example`의 `local_google_experiment`는
+`gemini-3.1-flash-image`, dev/prod의 `MODEL_PROFILE=runtime`은 EKS WIF와
+`gpt-image-2.5-flare`를 사용합니다. 로컬 OpenAI 검증용
+`MODEL_PROFILE=local_openai_smoke`도 같은 OpenAI 모델을 API key로 호출합니다.
 
 ```bash
 uv sync --frozen
@@ -137,12 +142,11 @@ docker compose up -d
 docker compose run --rm migrate validate
 ```
 
-API·worker·scheduler를 각각 실행합니다.
+API와 PostgreSQL polling worker를 각각 실행합니다.
 
 ```bash
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO
-uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
+uv run python -m funding_story.worker --lane all
 ```
 
 ## 검증
@@ -154,8 +158,8 @@ uv build
 ```
 
 Funding Story application·HTTP 계약 테스트는 in-memory TTL adapter를 사용합니다. DB 테스트는
-Content Insights와 기존 migration 검증을 위해 격리된 PostgreSQL 17을 사용하고, 렌더링 테스트는
-실제 Chromium·Pretendard를 사용합니다.
+TTL·lease·공유 호출 제한·Content Insights·migration을 PostgreSQL 17에서 검증하고,
+렌더링 테스트는 실제 Chromium·Pretendard를 사용합니다.
 
 ## 문서
 

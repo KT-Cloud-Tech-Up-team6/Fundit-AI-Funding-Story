@@ -1,3 +1,5 @@
+import time
+
 import pytest
 from test_application import FakeRecordRepository
 
@@ -205,15 +207,16 @@ def test_worker_uses_registered_generator_and_persists_output():
     assert result["artifacts"]["PAGE_SUMMARY"]["prompt_version"] == "page-summary-test"
 
 
-def test_duplicate_delivery_does_not_invoke_generator_when_lock_is_unavailable():
-    class LockedRepository(FakeRecordRepository):
-        def try_job_lock(self, value):
-            return False
-
-    repository = LockedRepository()
+def test_duplicate_delivery_does_not_invoke_generator_during_active_lease():
+    repository = FakeRecordRepository()
     application = ContentInsightsApplication(repository)
     run, _ = application.create_run(request(artifacts=["PAGE_SUMMARY"]), "project-1")
     page_id = artifact_id(run, "PAGE_SUMMARY")
+    repository.records[page_id]["data"].update(
+        status="RUNNING",
+        _lease_token="other-worker",
+        _lease_until=time.time() + 60,
+    )
 
     class Generator:
         artifact_type = ArtifactType.PAGE_SUMMARY
@@ -223,4 +226,7 @@ def test_duplicate_delivery_does_not_invoke_generator_when_lock_is_unavailable()
             raise AssertionError("잠긴 artifact의 generator가 실행되면 안 됩니다.")
 
     execute_artifact(application, page_id, {ArtifactType.PAGE_SUMMARY: Generator()})
-    assert application.get_run(run["run_id"], "project-1")["artifacts"]["PAGE_SUMMARY"]["status"] == "QUEUED"
+    assert (
+        application.get_run(run["run_id"], "project-1")["artifacts"]["PAGE_SUMMARY"]["status"]
+        == "RUNNING"
+    )

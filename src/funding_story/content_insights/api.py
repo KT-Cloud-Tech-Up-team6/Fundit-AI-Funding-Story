@@ -67,16 +67,11 @@ CreateBody = Annotated[
 
 
 def kick(artifact_id: str, artifact_type: ArtifactType) -> None:
-    try:
-        from ..tasks import enqueue_content_insight
-
-        enqueue_content_insight(artifact_id, artifact_type)
-    except Exception:  # noqa: BLE001 - durable outbox will redeliver the accepted artifact
-        emit(
-            "content_insight_outbox_waiting",
-            artifact_id=artifact_id,
-            artifact_type=artifact_type.value,
-        )
+    emit(
+        "content_insight_job_queued",
+        artifact_id=artifact_id,
+        artifact_type=artifact_type.value,
+    )
 
 
 @router.post(

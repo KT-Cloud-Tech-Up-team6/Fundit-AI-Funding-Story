@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 from ..application import ApplicationConflict, ApplicationInvalid
 from ..domain.repositories import Record, RecordRepository
+from ..job_lease import leased_record
 from .models import (
     ArtifactOutput,
     ArtifactStatus,
@@ -196,34 +197,30 @@ class ContentInsightsApplication:
 
     @contextmanager
     def claim_artifact(self, artifact_id: str) -> Iterator[Record | None]:
-        with self._records.transaction() as lock:
-            if not lock.try_job_lock(artifact_id):
+        with leased_record(
+            self._records,
+            artifact_id,
+            queued=ArtifactStatus.QUEUED.value,
+            running=ArtifactStatus.RUNNING.value,
+        ) as artifact:
+            if artifact is None:
                 yield None
                 return
-            try:
-                artifact = self._records.get(artifact_id, kind=ARTIFACT_KIND)
-                if artifact["data"]["status"] not in (
-                    ArtifactStatus.QUEUED.value,
-                    ArtifactStatus.RUNNING.value,
-                ):
-                    yield None
-                    return
-                parent = self._records.get(artifact["data"]["run_id"], artifact["project_id"], kind=RUN_KIND)
-                if parent["data"]["status"] == RunStatus.STALE.value:
-                    artifact["data"]["status"] = ArtifactStatus.STALE.value
-                    self._records.save(artifact_id, artifact["data"])
-                    yield None
-                    return
-                artifact["data"].update(
-                    status=ArtifactStatus.RUNNING.value,
-                    attempts=int(artifact["data"].get("attempts", 0)) + 1,
-                    error=None,
-                )
+            parent = self._records.get(
+                artifact["data"]["run_id"], artifact["project_id"], kind=RUN_KIND
+            )
+            if parent["data"]["status"] == RunStatus.STALE.value:
+                artifact["data"]["status"] = ArtifactStatus.STALE.value
                 self._records.save(artifact_id, artifact["data"])
-                self._refresh_parent(self._records, parent["id"], artifact["project_id"])
-                yield artifact
-            finally:
-                lock.unlock_job(artifact_id)
+                yield None
+                return
+            artifact["data"].update(
+                attempts=int(artifact["data"].get("attempts", 0)) + 1,
+                error=None,
+            )
+            self._records.save(artifact_id, artifact["data"])
+            self._refresh_parent(self._records, parent["id"], artifact["project_id"])
+            yield artifact
 
     def artifact_context(self, artifact: Record) -> tuple[dict, ArtifactType]:
         parent = self._records.get(artifact["data"]["run_id"], artifact["project_id"], kind=RUN_KIND)

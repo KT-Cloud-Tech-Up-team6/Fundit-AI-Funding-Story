@@ -28,11 +28,5 @@ services:
       FLYWAY_CONNECT_RETRIES: 20
     command: migrate
     volumes: ["./db/migration:/flyway/sql:ro"]
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    ports: ["127.0.0.1:56379:6379"]
-    volumes: ["ai-queue:/data"]
 volumes:
   ai-db:
-  ai-queue:

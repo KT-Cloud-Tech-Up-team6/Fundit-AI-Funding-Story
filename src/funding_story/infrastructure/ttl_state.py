@@ -1,14 +1,12 @@
 import copy
-import json
 import threading
 import time
 from contextlib import contextmanager
 from functools import lru_cache
 from uuid import uuid4
 
-from redis import Redis
-
 from ..config import settings
+from .persistence import PostgresRecordRepository, repository
 
 
 def _is_pending(row: dict) -> bool:
@@ -16,13 +14,13 @@ def _is_pending(row: dict) -> bool:
 
 
 class InMemoryTtlRecordRepository:
-    """Test adapter with the same non-durable semantics as the Redis state store."""
+    """Test adapter with the same short-lived semantics as the PostgreSQL store."""
 
-    def __init__(self):
+    def __init__(self, ttl_seconds=86_400):
+        self._ttl = ttl_seconds
         self.records: dict[str, dict] = {}
         self.requests: dict[tuple[str, str], dict] = {}
         self._latest: dict[tuple[str, str], str] = {}
-        self._locks: set[str] = set()
         self._mutex = threading.RLock()
 
     @contextmanager
@@ -81,17 +79,31 @@ class InMemoryTtlRecordRepository:
     def lock_request(self, value):
         return None
 
-    def try_job_lock(self, value):
-        if value in self._locks:
-            return False
-        self._locks.add(value)
-        return True
-
-    def unlock_job(self, value):
-        self._locks.discard(value)
-
     def pending_job_ids(self):
-        return [record_id for record_id, row in self.records.items() if _is_pending(row)]
+        now = time.time()
+        return [
+            record_id
+            for record_id, row in self.records.items()
+            if _is_pending(row)
+            and (
+                row["data"].get("status") == "queued"
+                or float(row["data"].get("_lease_until", 0)) <= now
+            )
+        ]
+
+    def cleanup_expired(self):
+        cutoff = time.time() - self._ttl
+        expired = [record_id for record_id, row in self.records.items() if row["updated_at"] < cutoff]
+        for record_id in expired:
+            row = self.records.pop(record_id)
+            self.requests = {
+                key: value
+                for key, value in self.requests.items()
+                if value["record_id"] != record_id
+            }
+            if self._latest.get((row["project_id"], row["kind"])) == record_id:
+                self._latest.pop((row["project_id"], row["kind"]), None)
+        return len(expired)
 
     def delete_run_checkpoints(self, run_id):
         return None
@@ -108,187 +120,87 @@ class InMemoryTtlRecordRepository:
         return True, "ready"
 
 
-class RedisTtlRecordRepository:
-    """Short-lived Funding Story state shared by API and Celery workers."""
+class PostgresTtlRecordRepository:
+    """Funding Story view over the shared AI PostgreSQL tables with TTL semantics."""
 
-    def __init__(self, client: Redis, ttl_seconds: int):
-        self._redis = client
+    _KINDS = ("session", "chat", "run")
+    _TTL_KINDS = _KINDS + ("image_rate_limit",)
+
+    def __init__(self, records: PostgresRecordRepository, ttl_seconds: int):
+        self._records = records
         self._ttl = ttl_seconds
-        self._prefix = "funding-story:v1"
-        self._job_tokens: dict[str, str] = {}
 
-    def _record_key(self, record_id):
-        return f"{self._prefix}:record:{record_id}"
-
-    def _latest_key(self, project, kind):
-        return f"{self._prefix}:latest:{project}:{kind}"
-
-    def _request_key(self, project, request_key):
-        return f"{self._prefix}:request:{project}:{request_key}"
+    def _expired(self, row):
+        return row["updated_at"].timestamp() < time.time() - self._ttl
 
     @contextmanager
     def transaction(self):
-        lock = self._redis.lock(
-            f"{self._prefix}:transaction",
-            timeout=30,
-            blocking_timeout=10,
-        )
-        if not lock.acquire(blocking=True):
-            raise TimeoutError("Funding Story 상태 잠금을 획득하지 못했습니다.")
-        try:
-            yield self
-        finally:
-            lock.release()
-
-    def _write(self, row):
-        key = self._record_key(row["id"])
-        pipe = self._redis.pipeline()
-        pipe.set(key, json.dumps(row, ensure_ascii=False, separators=(",", ":")), ex=self._ttl)
-        pipe.set(self._latest_key(row["project_id"], row["kind"]), row["id"], ex=self._ttl)
-        if _is_pending(row):
-            pipe.sadd(f"{self._prefix}:pending", row["id"])
-        else:
-            pipe.srem(f"{self._prefix}:pending", row["id"])
-        pipe.execute()
+        with self._records.transaction() as records:
+            yield PostgresTtlRecordRepository(records, self._ttl)
 
     def create(self, project, kind, data, record_id=None):
-        record_id = record_id or str(uuid4())
-        now = time.time()
-        row = {
-            "id": record_id,
-            "project_id": project,
-            "kind": kind,
-            "revision": 1,
-            "data": data,
-            "created_at": now,
-            "updated_at": now,
-        }
-        if not self._redis.set(
-            self._record_key(record_id),
-            json.dumps(row, ensure_ascii=False, separators=(",", ":")),
-            ex=self._ttl,
-            nx=True,
-        ):
-            raise ValueError("이미 존재하는 상태 ID입니다.")
-        self._write(row)
-        return record_id
+        return self._records.create(project, kind, data, record_id)
 
     def get(self, record_id, project=None, *, lock=False, kind=None):
-        raw = self._redis.get(self._record_key(record_id))
-        if raw is None:
-            raise LookupError("대상을 찾을 수 없습니다.")
-        row = json.loads(raw)
-        if (project is not None and row["project_id"] != project) or (
-            kind is not None and row["kind"] != kind
-        ):
+        row = self._records.get(record_id, project, lock=lock, kind=kind)
+        if row["kind"] in self._KINDS and self._expired(row):
             raise LookupError("대상을 찾을 수 없습니다.")
         return row
 
     def save(self, record_id, data, revision=None):
-        row = self.get(record_id)
-        row["data"] = data
-        if revision is not None:
-            row["revision"] = revision
-        row["updated_at"] = time.time()
-        self._write(row)
+        return self._records.save(record_id, data, revision)
 
     def latest(self, project, kind):
-        record_id = self._redis.get(self._latest_key(project, kind))
-        if not record_id:
-            return None
-        try:
-            return self.get(record_id, project, kind=kind)
-        except LookupError:
-            self._redis.delete(self._latest_key(project, kind))
-            return None
+        row = self._records.latest(project, kind)
+        return None if row is None or self._expired(row) else row
 
     def get_request(self, project, request_key):
-        raw = self._redis.get(self._request_key(project, request_key))
-        return json.loads(raw) if raw else None
+        request = self._records.get_request(project, request_key)
+        if request is None:
+            return None
+        try:
+            self.get(request["record_id"], project)
+        except LookupError:
+            return None
+        return request
 
     def add_request(self, project, request_key, fingerprint, record_id):
-        value = {
-            "project_id": project,
-            "request_key": request_key,
-            "fingerprint": fingerprint,
-            "record_id": record_id,
-        }
-        self._redis.set(
-            self._request_key(project, request_key),
-            json.dumps(value, ensure_ascii=False, separators=(",", ":")),
-            ex=self._ttl,
-        )
+        return self._records.add_request(project, request_key, fingerprint, record_id)
 
     def lock_request(self, value):
-        return None
-
-    def try_job_lock(self, value):
-        token = str(uuid4())
-        acquired = bool(
-            self._redis.set(f"{self._prefix}:job-lock:{value}", token, ex=600, nx=True)
-        )
-        if acquired:
-            self._job_tokens[value] = token
-        return acquired
-
-    def unlock_job(self, value):
-        token = self._job_tokens.pop(value, None)
-        if token is None:
-            return
-        self._redis.eval(
-            "if redis.call('get', KEYS[1]) == ARGV[1] then "
-            "return redis.call('del', KEYS[1]) else return 0 end",
-            1,
-            f"{self._prefix}:job-lock:{value}",
-            token,
-        )
+        return self._records.lock_request(value)
 
     def pending_job_ids(self):
         pending = []
-        key = f"{self._prefix}:pending"
-        for record_id in self._redis.smembers(key):
+        for record_id in self._records.pending_job_ids():
             try:
                 row = self.get(record_id)
             except LookupError:
-                self._redis.srem(key, record_id)
                 continue
-            if _is_pending(row):
+            if row["kind"] in ("chat", "run") and _is_pending(row):
                 pending.append(record_id)
-            else:
-                self._redis.srem(key, record_id)
         return pending
 
+    def cleanup_expired(self):
+        return self._records.delete_expired(self._TTL_KINDS, self._ttl)
+
     def delete_run_checkpoints(self, run_id):
-        return None
+        return self._records.delete_run_checkpoints(run_id)
 
     def delete_record(self, record_id, project, kind):
-        row = self.get(record_id, project, kind=kind)
-        pipe = self._redis.pipeline()
-        pipe.delete(self._record_key(record_id))
-        pipe.srem(f"{self._prefix}:pending", record_id)
-        if self._redis.get(self._latest_key(project, kind)) == record_id:
-            pipe.delete(self._latest_key(project, kind))
-        pipe.execute()
-        return row
+        return self._records.delete_record(record_id, project, kind)
 
     @staticmethod
     def public(row):
         return {"id": row["id"], "revision": row["revision"], **copy.deepcopy(row["data"])}
 
     def ready(self):
-        try:
-            self._redis.ping()
-            return True, "ready"
-        except Exception as exc:  # noqa: BLE001
-            return False, type(exc).__name__
+        return self._records.ready()
 
 
 @lru_cache
 def ttl_repository():
     cfg = settings()
     if cfg.app_env == "test":
-        return InMemoryTtlRecordRepository()
-    return RedisTtlRecordRepository(
-        Redis.from_url(cfg.funding_story_state_redis_url, decode_responses=True),
-        cfg.funding_story_state_ttl_seconds,
-    )
+        return InMemoryTtlRecordRepository(cfg.funding_story_state_ttl_seconds)
+    return PostgresTtlRecordRepository(repository(), cfg.funding_story_state_ttl_seconds)

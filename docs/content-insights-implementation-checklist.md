@@ -108,7 +108,7 @@ Backend·FE 항목의 `[x]`는 인터페이스 결정과 문서화 완료를 뜻
 - [x] `content-insights.storyline` task/queue를 추가한다.
 - [x] 선택적 authoring/image queue와 subscription을 분리한다.
 - [ ] Page Summary worker의 concurrency와 resource limit 기본값을 정한다. `보류: 운영 부하 측정`
-- [x] broker 전달 실패 시 DB에 남은 artifact를 dispatcher가 재전달하는 경로를 테스트한다.
+- [x] DB에 남은 `QUEUED`·lease 만료 artifact를 polling worker가 회수하는 경로를 테스트한다.
 - [x] 중복 delivery에서 generator가 두 번 실행되지 않도록 lock 테스트를 추가한다.
 - [ ] 공급자 retry를 artifact별 설정으로 분리한다. `보류: 현재 공통 429/5xx 3회, 15초·30초 backoff로 첫 릴리스 운영`
 - [x] 출력 계약 오류를 최초 호출 포함 최대 3회로 제한한다.
@@ -211,7 +211,7 @@ Backend·FE 항목의 `[x]`는 인터페이스 결정과 문서화 완료를 뜻
 - [x] revision stale 처리 테스트를 추가한다.
 - [x] idempotency 충돌 테스트를 추가한다.
 - [x] 프로젝트 자산·기록 격리 테스트를 추가한다.
-- [x] broker 장애와 outbox 복구 테스트를 추가한다.
+- [x] worker 중단과 lease 만료 복구 테스트를 추가한다.
 - [x] AI API integration test를 추가한다.
 - [ ] Project Service의 snapshot/outbox/polling contract test와 DB migration 통합 테스트를 추가한다. `외부 Backend 저장소 적용`
 - [ ] 배포된 AI와 Project Service 사이의 실제 HTTP end-to-end smoke test를 수행한다. `보류: 배포 환경`
@@ -230,7 +230,7 @@ Backend·FE 항목의 `[x]`는 인터페이스 결정과 문서화 완료를 뜻
 - [x] 성공·실패 구조화 로그에 run/artifact/project/revision/prompt version, attempt, duration을 남긴다.
 - [x] snapshot 원문·서비스 token·이미지 바이트가 신규 로그 필드에 남지 않도록 구성한다.
 - [ ] artifact별 모델 비용을 집계한다. `보류: 비용 metric backend`
-- [ ] API/worker/beat의 DB connection budget을 재계산한다. `보류: replica·concurrency 확정`
+- [ ] API/polling worker의 DB connection budget을 재계산한다. `보류: replica·concurrency 확정`
 - [x] Page Summary worker를 이미지·Storyline worker와 별도 rollout할 수 있도록 독립 queue와 환경변수를 추가한다. `replica/resource 값은 보류`
 - [x] 운영 retry와 수동 재처리 절차를 작성한다.
 - [ ] LangSmith 전송 범위와 보존 정책을 보안팀과 확인한다. `보류: 보안 정책`

@@ -74,7 +74,10 @@ class PostgresRecordRepository:
     def add_request(self, project, request_key, fingerprint, record_id):
         with self._using_connection() as conn:
             conn.execute(
-                "INSERT INTO ai_requests(project_id,request_key,fingerprint,record_id) VALUES(%s,%s,%s,%s)",
+                "INSERT INTO ai_requests(project_id,request_key,fingerprint,record_id) "
+                "VALUES(%s,%s,%s,%s) "
+                "ON CONFLICT(project_id,request_key) DO UPDATE SET "
+                "fingerprint=EXCLUDED.fingerprint,record_id=EXCLUDED.record_id",
                 (project, request_key, fingerprint, record_id),
             )
 
@@ -82,26 +85,31 @@ class PostgresRecordRepository:
         with self._using_connection() as conn:
             conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (value,))
 
-    def try_job_lock(self, value):
-        with self._using_connection() as conn:
-            return bool(
-                conn.execute(
-                    "SELECT pg_try_advisory_lock(hashtextextended(%s,0)) AS acquired", (value,)
-                ).fetchone()["acquired"]
-            )
-
-    def unlock_job(self, value):
-        with self._using_connection() as conn:
-            conn.execute("SELECT pg_advisory_unlock(hashtextextended(%s,0))", (value,))
-
     def pending_job_ids(self):
         with self._using_connection() as conn:
             rows = conn.execute(
                 "SELECT id FROM ai_records "
-                "WHERE (kind IN ('chat','run') AND data->>'status' IN ('queued','running')) "
-                "OR (kind='content_insight_artifact' AND data->>'status' IN ('QUEUED','RUNNING'))"
+                "WHERE ((kind IN ('chat','run') AND data->>'status' IN ('queued','running')) "
+                "OR (kind='content_insight_artifact' AND data->>'status' IN ('QUEUED','RUNNING'))) "
+                "AND (data->>'status' IN ('queued','QUEUED') "
+                "OR COALESCE((data->>'_lease_until')::double precision,0) "
+                "<= EXTRACT(EPOCH FROM clock_timestamp()))"
             ).fetchall()
         return [row["id"] for row in rows]
+
+    def delete_expired(self, kinds, ttl_seconds):
+        with self._using_connection() as conn:
+            rows = conn.execute(
+                "SELECT id FROM ai_records WHERE kind = ANY(%s) "
+                "AND updated_at < clock_timestamp() - (%s * interval '1 second')",
+                (list(kinds), ttl_seconds),
+            ).fetchall()
+            record_ids = [row["id"] for row in rows]
+            if not record_ids:
+                return 0
+            conn.execute("DELETE FROM ai_requests WHERE record_id = ANY(%s)", (record_ids,))
+            result = conn.execute("DELETE FROM ai_records WHERE id = ANY(%s)", (record_ids,))
+        return result.rowcount
 
     def delete_run_checkpoints(self, run_id):
         pattern = run_id + ":%"
@@ -111,6 +119,7 @@ class PostgresRecordRepository:
 
     def delete_record(self, record_id, project, kind):
         with self._using_connection() as conn:
+            conn.execute("DELETE FROM ai_requests WHERE record_id=%s", (record_id,))
             result = conn.execute(
                 "DELETE FROM ai_records WHERE id=%s AND project_id=%s AND kind=%s",
                 (record_id, project, kind),

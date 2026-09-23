@@ -1,14 +1,14 @@
 import json
-
-from celery import Celery
-from celery.signals import worker_process_init, worker_process_shutdown
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 
 from . import provider
+from .body import context_summary, generated_body
 from .bootstrap import application, close_pools, content_insights_application, open_pools
 from .config import settings
-from .content_insights.models import ArtifactType
 from .content_insights.worker import execute_artifact
 from .graph import generate_checked
+from .image_jobs import ImageJob, generate_images
 from .intake import parse_initial_review, parse_review
 from .media import BackendClient, read_source_image
 from .models import (
@@ -16,8 +16,6 @@ from .models import (
     CopyResult,
     FailedSlot,
     FundingStoryContext,
-    GeneratedBody,
-    ImageContentBlock,
     OutputDescriptor,
     ProjectInput,
     Review,
@@ -28,29 +26,22 @@ from .observability import emit
 from .planner import plan, requirements, validate_copy
 from .renderer import render_scene
 
-records = application
 
-celery = Celery("funding_story", broker=settings().celery_broker_url)
-celery.conf.update(
-    task_acks_late=True,
-    task_reject_on_worker_lost=True,
-    worker_prefetch_multiplier=1,
-    task_ignore_result=True,
-    broker_transport_options={"visibility_timeout": 7200},
-    beat_schedule={"recover-undelivered": {"task": "funding.dispatch", "schedule": 15.0}},
-)
+@dataclass(frozen=True)
+class LoadedReference:
+    slot_id: str
+    reward_id: int | None
+    content: bytes
+    mime: str
 
 
-@worker_process_init.connect
 def open_worker_database_pools(**kwargs):
     try:
-        # PostgreSQL remains a Content Insights dependency only. Funding Story state is TTL Redis.
         open_pools(checkpoints=False)
     except RuntimeError as exc:
         raise SystemExit(str(exc)) from exc
 
 
-@worker_process_shutdown.connect
 def close_worker_database_pools(**kwargs):
     close_pools()
 
@@ -62,7 +53,13 @@ BE가 전달한 프로젝트·리워드 사실과 대화만 사용하고 가격�
 제품을 이해할 수 있으면 서로 다른 일상 문제 4개와 핵심 강점 3~12개를 구성하세요.
 product에는 이해한 제품, story에는 전달할 이야기, strengths에는 핵심 강점을 정리하세요.
 tone과 brand_color는 사용자가 명시한 경우에만 반영하고, 없으면 null로 두세요.
+story_context에는 사용자가 채팅에서 제공한 예산(자금 사용 계획), 일정, 팀 소개, 프로젝트 정책,
+예상되는 어려움만 budget, schedule, team, policy, risks로 정리하세요. 이전 확인 사실은 유지하고
+사용자가 수정·삭제한 내용은 반영하세요. 제공하지 않은 항목은 빈 문자열로 두세요.
+이 항목들은 선택 정보이므로 빈 값만으로 missing을 추가하거나 생성을 막지 마세요.
+금액·날짜·정책을 창작하지 말고 입력된 표현을 보존하세요. 리워드 상세는 BE 정보만 사용합니다.
 reply의 최종 요약에는 제품·이야기·강점·리워드와 선택 말투를 포함하고 확인 전 생성하지 않는다고 안내하세요.
+story_context의 내용은 서버가 reply 뒤에 별도로 붙이므로 reply에 중복하지 마세요.
 Review JSON만 반환하세요.
 """
 
@@ -71,6 +68,7 @@ INITIAL_REVIEW_PROMPT = """당신은 펀딩 스토리 작성을 시작하는 대
 제작 계기, 보여주고 싶은 사용 장면, 대상 고객 중 스토리에 가장 도움이 되는 1~2가지만 질문하세요.
 missing에는 실제 질문한 항목만 넣고, product와 story는 확인된 사실 범위에서 작성하세요.
 강점과 문제를 추정해야 한다면 빈 목록으로 두세요. Review JSON만 반환하세요.
+story_context의 각 항목은 사용자가 아직 제공하지 않았으면 빈 문자열로 두세요.
 """
 
 COPY_RULES = """확인된 프로젝트 사실과 대화만 사용해 템플릿의 모든 text와 image prompt 슬롯을 채우세요.
@@ -81,29 +79,14 @@ COPY_RULES = """확인된 프로젝트 사실과 대화만 사용해 템플릿�
 """
 
 
-@celery.task(name="funding.dispatch")
 def dispatch():
     for record_id in application.pending_job_ids():
-        execute.delay(record_id)
+        execute(record_id)
     for record_id, artifact_type in content_insights_application.pending_artifacts():
-        enqueue_content_insight(record_id, artifact_type)
+        execute_content_insight(record_id, artifact_type)
 
 
-def content_insight_queue(artifact_type: ArtifactType) -> str:
-    cfg = settings()
-    return (
-        cfg.content_insights_page_summary_queue
-        if artifact_type == ArtifactType.PAGE_SUMMARY
-        else cfg.content_insights_storyline_queue
-    )
-
-
-def enqueue_content_insight(artifact_id: str, artifact_type: ArtifactType) -> None:
-    execute_content_insight.apply_async(args=[artifact_id], queue=content_insight_queue(artifact_type))
-
-
-@celery.task(name="funding.content_insights.execute")
-def execute_content_insight(artifact_id):
+def execute_content_insight(artifact_id, artifact_type=None):
     execute_artifact(content_insights_application, artifact_id)
 
 
@@ -122,7 +105,18 @@ def _failed_completion(message: str) -> RunCompletionRequest:
     )
 
 
-@celery.task(name="funding.execute")
+class CompletionDeliveryError(RuntimeError):
+    """A finalized result must not be replaced by a generation-failure callback."""
+
+
+def _deliver_completion(client, run_id, body):
+    try:
+        response = client.complete(run_id, body)
+        application.complete_run_delivery(run_id, response.status)
+    except Exception as exc:  # Includes local bookkeeping after BE acceptance.
+        raise CompletionDeliveryError("완료 결과 전달 처리에 실패했습니다.") from exc
+
+
 def execute(record_id):
     with application.claim_job(record_id) as row:
         if row is None:
@@ -135,13 +129,13 @@ def execute(record_id):
             else:
                 raise ValueError("지원하지 않는 작업 종류입니다.")
         except Exception as exc:  # noqa: BLE001
-            if row["kind"] == "run":
+            if row["kind"] == "run" and not isinstance(exc, CompletionDeliveryError):
                 try:
-                    response = BackendClient(row["project_id"]).complete(
+                    _deliver_completion(
+                        BackendClient(row["project_id"]),
                         row["id"],
                         _failed_completion("상세페이지 생성에 실패했습니다."),
                     )
-                    application.complete_run_delivery(row["id"], response.status)
                 except Exception as callback_exc:  # noqa: BLE001
                     application.fail_job(row["id"], callback_exc)
             else:
@@ -150,7 +144,46 @@ def execute(record_id):
 
 
 def _references(context):
-    return [read_source_image(reference) for reference in context.source_images]
+    loaded = []
+    for reference in context.source_images:
+        content, mime = read_source_image(reference)
+        loaded.append(
+            LoadedReference(
+                slot_id=reference.slot_id,
+                reward_id=reference.reward_id,
+                content=content,
+                mime=mime,
+            )
+        )
+    return loaded
+
+
+def _reference_parts(references):
+    return [(reference.content, reference.mime) for reference in references]
+
+
+def _selected_references(references, reward_id):
+    if reward_id is None:
+        ordered = [reference for reference in references if reference.reward_id is None]
+        ordered += [reference for reference in references if reference.reward_id is not None]
+    else:
+        ordered = [reference for reference in references if reference.reward_id == reward_id]
+        ordered += [reference for reference in references if reference.reward_id is None]
+        ordered += [
+            reference
+            for reference in references
+            if reference.reward_id not in (None, reward_id)
+        ]
+    return tuple((reference.content, reference.mime) for reference in ordered[:16])
+
+
+def _image_output_size(width, height):
+    ratio = width / height
+    if ratio >= 1.2:
+        return "1536x1024"
+    if ratio <= 0.8:
+        return "1024x1536"
+    return "1024x1024"
 
 
 def chat(row):
@@ -171,7 +204,7 @@ def chat(row):
         (INITIAL_REVIEW_PROMPT if initial else REVIEW_PROMPT) + "\n입력:\n" + prompt_input,
         Review,
         parser=parse_initial_review if initial else parse_review,
-        references=_references(FundingStoryContext.model_validate(context)),
+        references=_reference_parts(_references(FundingStoryContext.model_validate(context))),
     )
     reply = review.reply
     if not initial:
@@ -180,6 +213,8 @@ def chat(row):
             + review.model_dump_json()
         )
         reply = "".join(chunks).strip() or review.reply
+    if not review.missing and (summary := context_summary(review.story_context)):
+        reply += "\n\n추가 본문에 반영할 내용\n\n" + summary
     application.complete_chat(
         session_id=session["id"],
         chat_id=chat_id,
@@ -224,54 +259,57 @@ def _slot_error(slot_id, stage, code, message):
 
 
 def _generate_source_images(info, scene, draft, references):
-    sources = {}
-    failed_blocks: dict[str, FailedSlot] = {}
+    jobs = []
+    slots = []
     for block in scene["blocks"]:
         for node in block["nodes"]:
             if node["kind"] != "image":
                 continue
             slot_id = node["id"]
+            reward_id = None
             if slot_id.startswith("rewards."):
                 reward_index = int(slot_id.rsplit("-", 1)[1])
                 if reward_index >= len(info.rewards):
                     continue
-            last_error = None
-            for _ in range(2):
-                try:
-                    prompt = (
+                reward_id = info.rewards[reward_index].reward_id
+            jobs.append(
+                ImageJob(
+                    slot_id=slot_id,
+                    prompt=(
                         draft.image_prompts[slot_id]
                         + "\nPreserve the reference product shape and color. "
                         + f"No text or watermarks. Composition aspect ratio {node['width']}:{node['height']}."
-                    )
-                    blob, mime = provider.image(prompt, references)
-                    sources[slot_id] = (blob, mime)
-                    node.update(assetId=slot_id, pending=False)
-                    last_error = None
-                    break
-                except Exception as exc:  # noqa: BLE001
-                    last_error = exc
-            if last_error is not None:
-                failed_blocks.setdefault(
-                    block["id"],
-                    _slot_error(
-                        block["id"],
-                        "generation",
-                        "IMAGE_GENERATION_FAILED",
-                        "이미지 생성에 실패했습니다.",
                     ),
+                    size=_image_output_size(node["width"], node["height"]),
+                    references=_selected_references(references, reward_id),
                 )
+            )
+            slots.append((block["id"], node))
+    sources, failed = generate_images(jobs, references)
+    failed_blocks: dict[str, FailedSlot] = {}
+    # Only the coordinator mutates the scene, after all model calls have finished.
+    for block_id, node in slots:
+        if node["id"] in failed:
+            failed_blocks.setdefault(
+                block_id,
+                _slot_error(
+                    block_id,
+                    "generation",
+                    "IMAGE_GENERATION_FAILED",
+                    "이미지 생성에 실패했습니다.",
+                ),
+            )
+        else:
+            node.update(assetId=node["id"], pending=False)
     return sources, failed_blocks
 
 
 def _render_blocks(scene, sources, failed_blocks):
-    rendered = []
+    candidates = []
     for block in scene["blocks"]:
         if block["id"] in failed_blocks:
             continue
-        unresolved = any(
-            node["kind"] == "image" and node.get("pending")
-            for node in block["nodes"]
-        )
+        unresolved = any(node["kind"] == "image" and node.get("pending") for node in block["nodes"])
         # Empty reward cards are a template choice, not a generation failure.
         if unresolved and block["id"] != "rewards":
             failed_blocks[block["id"]] = _slot_error(
@@ -281,9 +319,26 @@ def _render_blocks(scene, sources, failed_blocks):
                 "필수 이미지 슬롯 생성에 실패했습니다.",
             )
             continue
-        try:
-            rendered.extend(render_scene(scene, sources, {block["id"]}))
-        except Exception:  # noqa: BLE001
+        candidates.append(block)
+
+    def render(block):
+        for attempt in range(2):
+            try:
+                return render_scene(scene, sources, {block["id"]})
+            except Exception:  # noqa: BLE001
+                emit("render_slot_failed", slot_id=block["id"], attempt=attempt + 1)
+        return None
+
+    rendered = []
+    with ThreadPoolExecutor(
+        max_workers=settings().render_concurrency, thread_name_prefix="story-render"
+    ) as pool:
+        # map preserves template order even when later blocks finish first.
+        results = list(pool.map(render, candidates))
+    for block, result in zip(candidates, results, strict=True):
+        if result:
+            rendered.extend(result)
+        else:
             failed_blocks[block["id"]] = _slot_error(
                 block["id"],
                 "rendering",
@@ -346,13 +401,7 @@ def generate(row):
         status = "partially_succeeded" if failed_blocks else "succeeded"
         body = RunCompletionRequest(
             status=status,
-            generated_body=GeneratedBody(
-                cover_image_slot_id=successful[0].slot_id,
-                intro_content=[
-                    ImageContentBlock(type="IMAGE", slot_id=image.slot_id)
-                    for image in successful
-                ],
-            ),
+            generated_body=generated_body(successful, review.story_context, context.rewards),
             successful_images=successful,
             failed_slots=list(failed_blocks.values()),
             error=None,
@@ -360,5 +409,4 @@ def generate(row):
     else:
         body = _failed_completion("사용 가능한 상세페이지 결과를 만들지 못했습니다.")
         body.failed_slots = list(failed_blocks.values())
-    response = client.complete(run_id, body)
-    application.complete_run_delivery(run_id, response.status)
+    _deliver_completion(client, run_id, body)

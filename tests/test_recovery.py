@@ -1,4 +1,4 @@
-from funding_story import tasks
+from funding_story import image_jobs, provider, tasks
 from funding_story.models import (
     CopyResult,
     FundingStoryContext,
@@ -43,9 +43,7 @@ def review():
         reply="확인",
         product="테스트 제품",
         story="테스트 이야기",
-        strengths=[
-            {"id": str(index), "title": "강점", "description": "설명"} for index in range(3)
-        ],
+        strengths=[{"id": str(index), "title": "강점", "description": "설명"} for index in range(3)],
         problems=[{"heading": str(index), "body": "문제"} for index in range(4)],
     )
 
@@ -112,6 +110,10 @@ class FakeBackend:
 
 
 def test_generation_retries_failed_image_then_reports_partial_success(monkeypatch):
+    from funding_story.config import settings
+
+    config = settings().model_copy(update={"image_retry_delay_seconds": 0.001})
+    monkeypatch.setattr(image_jobs, "settings", lambda: config)
     application = FakeApplication()
     backend = FakeBackend()
     generated_scene = scene()
@@ -123,16 +125,17 @@ def test_generation_retries_failed_image_then_reports_partial_success(monkeypatc
     )
     attempts = []
 
-    def image(prompt, references):
+    def image(prompt, references, **__):
         attempts.append(prompt.splitlines()[0])
         if prompt.startswith("benefit"):
-            raise RuntimeError("image failed")
+            raise provider.MissingImageError("image failed")
         return b"generated", "image/png"
 
     monkeypatch.setattr(tasks, "application", application)
     monkeypatch.setattr(tasks, "plan", lambda *_: (generated_scene, {}))
     monkeypatch.setattr(tasks, "generate_checked", lambda *args, **kwargs: draft)
-    monkeypatch.setattr(tasks.provider, "image", image)
+    monkeypatch.setattr(tasks.provider, "image_once", image)
+    monkeypatch.setattr(image_jobs.time, "sleep", lambda _: None)
     monkeypatch.setattr(
         tasks,
         "render_scene",
@@ -150,10 +153,12 @@ def test_generation_retries_failed_image_then_reports_partial_success(monkeypatc
     tasks.generate({"id": RUN_1, "project_id": "project-1"})
 
     assert attempts.count("hero") == 1
-    assert attempts.count("benefit") == 2
+    assert attempts.count("benefit") == config.image_generation_attempts
     assert backend.completion.status == "partially_succeeded"
     assert [failure.slot_id for failure in backend.completion.failed_slots] == ["benefit"]
     assert [image.slot_id for image in backend.completion.successful_images] == ["hero"]
+    assert backend.completion.generated_body.intro_content[-1].type == "TEXT"
+    assert "본품 1대" in backend.completion.generated_body.intro_content[-1].value
     assert application.delivered == (RUN_1, "partially_succeeded")
 
 
@@ -188,7 +193,7 @@ def test_execute_reports_failed_callback_when_generation_raises(monkeypatch):
     monkeypatch.setattr(tasks, "BackendClient", lambda project: FailingBackend())
     monkeypatch.setattr(tasks, "emit", lambda *args, **kwargs: None)
 
-    tasks.execute.run(RUN_2)
+    tasks.execute(RUN_2)
 
     assert completion == [(RUN_2, "failed")]
     assert failed == []

@@ -29,6 +29,7 @@ never reads or writes the BE Core database.
 ### Template generation
 
 - Produces copy and images for the configured Funding Story template blocks.
+- Generates image slots and renders PNG blocks with bounded concurrency, preserving template order.
 - Uses confirmed strengths and optional product information without fabricating unsupported content.
 - Retries failed image or rendering slots internally and reports usable partial results when needed.
 
@@ -36,6 +37,7 @@ never reads or writes the BE Core database.
 
 - Renders PNG output with server-side Chromium, Konva, and Pretendard.
 - Uploads generated images to BE-owned storage using short-lived upload targets.
+- Appends escaped lower-page HTML from confirmed chat facts and Core reward details after the PNG references.
 - Delivers generated body content, image references, and terminal status to BE through one completion callback.
 
 ## Contract at a glance
@@ -84,12 +86,12 @@ flowchart LR
     FE -->|run lookup| BE
 ```
 
-- Funding Story sessions, chats, run control state, revisions, and idempotency are TTL Redis data.
+- Funding Story sessions, chats, run control state, revisions, and idempotency are PostgreSQL TTL data.
 - Project facts, source images, final PNGs, generated public content, and final run state are BE-owned.
 - Source images and generated PNGs are held in AI process memory only while a job is running.
 - Funding Story does not persist input snapshots, generated documents, intermediate images, or
   LangGraph checkpoints in PostgreSQL.
-- PostgreSQL remains in this service only for the separate Content Insights feature.
+- Funding Story control state and Content Insights reuse the same AI PostgreSQL logical database.
 - Logs contain operational metadata only; prompts, user text, Core DTOs, signed URLs, and generated
   bodies are not written to logs or tracing systems.
 
@@ -126,7 +128,9 @@ retry lifecycle. It does not use the Funding Story TTL session state.
 ## Local development
 
 Requires Python 3.12.14, [uv](https://docs.astral.sh/uv/), Docker, and Google Cloud credentials for
-live model calls.
+text calls. `.env.example` uses `local_google_experiment` with `gemini-3.1-flash-image`;
+dev/prod uses `MODEL_PROFILE=runtime` with `gpt-image-2.5-flare` and EKS WIF. Local OpenAI
+verification uses `MODEL_PROFILE=local_openai_smoke` with the same OpenAI model alias and an API key.
 
 ```bash
 uv sync --frozen
@@ -137,12 +141,11 @@ docker compose up -d
 docker compose run --rm migrate validate
 ```
 
-Run API, worker, and scheduler in separate terminals:
+Run the API and PostgreSQL polling worker in separate terminals:
 
 ```bash
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
-uv run celery -A funding_story.tasks worker --pool=solo --loglevel=INFO
-uv run celery -A funding_story.tasks beat --loglevel=INFO --schedule=data/celerybeat-schedule
+uv run python -m funding_story.worker --lane all
 ```
 
 Local Swagger UI: [http://127.0.0.1:58001/docs](http://127.0.0.1:58001/docs)
@@ -156,8 +159,8 @@ uv build
 ```
 
 Funding Story application and HTTP contract tests use the in-memory TTL adapter. Database tests use
-an isolated PostgreSQL 17 container for Content Insights and existing migration validation. Rendering
-tests use real Chromium and Pretendard.
+an isolated PostgreSQL 17 container for state TTL, job leases, shared image pacing, Content Insights,
+and migration validation. Rendering tests use real Chromium and Pretendard.
 
 ## Documentation
 

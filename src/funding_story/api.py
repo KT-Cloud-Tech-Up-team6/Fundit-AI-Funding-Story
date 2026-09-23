@@ -25,7 +25,6 @@ from .models import (
 )
 from .observability import emit
 from .security import Project
-from .tasks import execute
 
 
 @asynccontextmanager
@@ -87,10 +86,7 @@ async def http_error(request: Request, exc: HTTPException):
 
 
 def kick(record_id: str) -> None:
-    try:
-        execute.delay(record_id)
-    except Exception:  # noqa: BLE001 - TTL pending set supports worker redispatch
-        emit("outbox_waiting", run_id=record_id)
+    emit("job_queued", run_id=record_id)
 
 
 @app.get("/health")
