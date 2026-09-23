@@ -92,7 +92,9 @@ class FundingStoryContext(StrictModel):
         if len(set(slots)) != len(slots):
             raise ValueError("source image slot_id는 중복될 수 없습니다.")
         allowed = set(reward_ids)
-        if any(image.reward_id is not None and image.reward_id not in allowed for image in self.source_images):
+        if any(
+            image.reward_id is not None and image.reward_id not in allowed for image in self.source_images
+        ):
             raise ValueError("source image reward_id는 현재 프로젝트 리워드여야 합니다.")
         return self
 
@@ -112,6 +114,16 @@ class Problem(StrictModel):
     body: str = Field(min_length=1, max_length=600)
 
 
+class StoryContext(StrictModel):
+    """Optional, chat-sourced facts kept only in the TTL session, not Core input."""
+
+    budget: str = Field(default="", max_length=6000, description="사용자가 알려준 자금 사용 계획")
+    schedule: str = Field(default="", max_length=6000, description="사용자가 알려준 일정과 날짜 표현")
+    team: str = Field(default="", max_length=6000, description="사용자가 알려준 팀 소개")
+    policy: str = Field(default="", max_length=6000, description="사용자가 알려준 프로젝트 정책")
+    risks: str = Field(default="", max_length=6000, description="사용자가 알려준 예상 어려움과 대응")
+
+
 class Review(StrictModel):
     reply: str = Field(min_length=1)
     product: str = ""
@@ -121,6 +133,7 @@ class Review(StrictModel):
     missing: list[str] = Field(default_factory=list)
     tone: str | None = Field(default=None, max_length=500)
     brand_color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    story_context: StoryContext = Field(default_factory=StoryContext)
 
     @model_validator(mode="after")
     def unique_strengths(self):
