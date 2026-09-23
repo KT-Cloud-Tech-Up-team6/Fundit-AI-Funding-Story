@@ -16,7 +16,7 @@
 - 성능 판정 독립 검증: 빈 텍스트·누락 영역·부분 성공·원본 재사용·중복/빈 이미지·미해결 슬롯·PNG/HTML 누락은 실패
 - PNG 블록 병렬 렌더링·실패 블록만 재렌더링·최종 템플릿 순서 유지
 - 추가 정보 채팅 요약 → revision 확인 → 실제 PNG 렌더링 → 하단 HTML → 완료 callback 연결
-- HTML 허용 태그·입력 escape·빈 선택 항목 생략·Core 리워드 상세 보존
+- HTML 허용 태그·입력 escape·빈 선택 항목 생략·리워드 상세 출력 제외
 - BE 업로드 대상과 성공·실패 슬롯 불변식
 - Funding Story run에 입력 snapshot·생성 문서·이미지 바이트 미저장
 - LangGraph PostgreSQL checkpoint 미사용
@@ -33,7 +33,7 @@ uv build
 
 | 실행 결과 (2026-09-23) | 결과 |
 |---|---|
-| `pytest -q` | 151 passed; Starlette 의존성 deprecation warning 1건 |
+| `pytest -q` | 152 passed; Starlette 의존성 deprecation warning 1건 |
 | `ruff check src tests scripts` | 통과 |
 | `uv build` | sdist·wheel 생성 통과 |
 
@@ -49,6 +49,7 @@ uv build
 | 비용 | OpenAI 이미지 약 $0.370; Gemini 원고 비용 제외 |
 
 단일 로컬 표본이며 배포 polling·실제 BE/S3/FE 왕복, 운영 WIF, 부하·품질 상한은 검증하지 않았다. 산출물은 로컬 `output/playwright/openai-postgres-smoke-20260923-02/`에만 보관한다.
+이 산출물은 리워드 상세 제거 전 실행 기록이다. 현재 하단 HTML에서 리워드 상세를 제외한 변경은 별도 자동 테스트로 검증한다.
 
 ## 공유 재시도·페이싱 실측 (2026-09-22)
 

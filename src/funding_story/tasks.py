@@ -57,7 +57,7 @@ story_context에는 사용자가 채팅에서 제공한 예산(자금 사용 계
 예상되는 어려움만 budget, schedule, team, policy, risks로 정리하세요. 이전 확인 사실은 유지하고
 사용자가 수정·삭제한 내용은 반영하세요. 제공하지 않은 항목은 빈 문자열로 두세요.
 이 항목들은 선택 정보이므로 빈 값만으로 missing을 추가하거나 생성을 막지 마세요.
-금액·날짜·정책을 창작하지 말고 입력된 표현을 보존하세요. 리워드 상세는 BE 정보만 사용합니다.
+금액·날짜·정책을 창작하지 말고 입력된 표현을 보존하세요. 리워드별 상세 설명은 story_context에 넣지 마세요.
 reply의 최종 요약에는 제품·이야기·강점·리워드와 선택 말투를 포함하고 확인 전 생성하지 않는다고 안내하세요.
 story_context의 내용은 서버가 reply 뒤에 별도로 붙이므로 reply에 중복하지 마세요.
 Review JSON만 반환하세요.
@@ -401,7 +401,7 @@ def generate(row):
         status = "partially_succeeded" if failed_blocks else "succeeded"
         body = RunCompletionRequest(
             status=status,
-            generated_body=generated_body(successful, review.story_context, context.rewards),
+            generated_body=generated_body(successful, review.story_context),
             successful_images=successful,
             failed_slots=list(failed_blocks.values()),
             error=None,
