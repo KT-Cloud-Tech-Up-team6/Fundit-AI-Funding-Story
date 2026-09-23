@@ -112,7 +112,7 @@ def test_template_uses_price_only_and_never_exposes_quantity_as_product_count():
     assert "100개" not in serialized
 
 
-def test_reward_name_divider_and_price_have_equal_spacing_and_centered_badge():
+def test_reward_name_is_vertically_centered_above_image_midline_and_badge_is_centered():
     nodes = {node["id"]: node for node in CATALOG["rewards"]["nodes"]}
     for index in range(3):
         image = nodes[f"rewards.image-{index}"]
@@ -123,11 +123,10 @@ def test_reward_name_divider_and_price_have_equal_spacing_and_centered_badge():
         card = nodes[f"rewards.card-{index}"]
         value = nodes[f"rewards.price-value-{index}"]
 
-        assert divider["y"] + divider["height"] / 2 == image["y"] + image["height"] / 2
-        assert (name["x"], name["width"], name["align"]) == (
-            divider["x"], divider["width"], "center"
-        )
-        assert divider["y"] - (name["y"] + name["height"]) == 64
+        midline = divider["y"] + divider["height"] / 2
+        assert midline == image["y"] + image["height"] / 2
+        assert abs(name["y"] + name["height"] / 2 - (image["y"] + midline) / 2) <= 0.5
+        assert (name["x"], name["align"]) == (divider["x"], "left")
         assert label["y"] - (divider["y"] + divider["height"]) == 64
         assert (label["x"], label["width"], label["align"]) == (
             background["x"], background["width"], "center"

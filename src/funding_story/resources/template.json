@@ -2853,7 +2853,7 @@
           {
             "id": "rewards.name-0",
             "x": 322,
-            "y": 585,
+            "y": 617,
             "width": 450,
             "height": 64,
             "kind": "text",
@@ -2863,7 +2863,7 @@
             "fontWeight": "600",
             "lineHeight": 1.3,
             "letterSpacing": -0.968,
-            "align": "center",
+            "align": "left",
             "fill": "#695844",
             "fidelity": "estimated"
           },
@@ -2947,7 +2947,7 @@
           {
             "id": "rewards.name-1",
             "x": 322,
-            "y": 943,
+            "y": 975,
             "width": 450,
             "height": 64,
             "kind": "text",
@@ -2957,7 +2957,7 @@
             "fontWeight": "600",
             "lineHeight": 1.3,
             "letterSpacing": -0.968,
-            "align": "center",
+            "align": "left",
             "fill": "#695844",
             "fidelity": "estimated"
           },
@@ -3041,7 +3041,7 @@
           {
             "id": "rewards.name-2",
             "x": 322,
-            "y": 1299,
+            "y": 1331,
             "width": 450,
             "height": 64,
             "kind": "text",
@@ -3051,7 +3051,7 @@
             "fontWeight": "600",
             "lineHeight": 1.3,
             "letterSpacing": -0.968,
-            "align": "center",
+            "align": "left",
             "fill": "#695844",
             "fidelity": "estimated"
           },
