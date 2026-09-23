@@ -64,12 +64,6 @@ class FakeRecordRepository:
     def lock_request(self, value):
         return None
 
-    def try_job_lock(self, value):
-        return True
-
-    def unlock_job(self, value):
-        return None
-
     def pending_job_ids(self):
         return [
             row["id"]

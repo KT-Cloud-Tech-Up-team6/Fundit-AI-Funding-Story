@@ -10,6 +10,8 @@ import pytest
 
 os.environ["APP_ENV"] = "test"
 os.environ["AI_SERVICE_TOKEN"] = "test-only"
+# Virtual-clock tests cover pacing; unrelated pipeline tests need no real pacing.
+os.environ["IMAGE_REQUEST_INTERVAL_SECONDS"] = "0.001"
 os.environ.setdefault("RYUK_CONTAINER_IMAGE", "testcontainers/ryuk:0.14.0")
 os.environ.pop("DATABASE_URL", None)
 os.environ.pop("TEST_DATABASE_URL", None)

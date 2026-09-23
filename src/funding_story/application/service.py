@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from ..domain.repositories import Record, RecordRepository
+from ..job_lease import leased_record
 from ..models import (
     ConfirmRequest,
     FundingStoryContext,
@@ -314,22 +315,19 @@ class FundingStoryApplication:
     def pending_job_ids(self) -> list[str]:
         return self._records.pending_job_ids()
 
+    def cleanup_expired(self) -> int:
+        cleanup = getattr(self._records, "cleanup_expired", None)
+        return cleanup() if cleanup else 0
+
     @contextmanager
     def claim_job(self, record_id: str) -> Iterator[Record | None]:
-        with self._records.transaction() as lock:
-            if not lock.try_job_lock(record_id):
-                yield None
-                return
-            try:
-                row = self._records.get(record_id)
-                if row["data"]["status"] not in ("queued", "running"):
-                    yield None
-                    return
-                row["data"]["status"] = "running"
-                self._records.save(record_id, row["data"])
-                yield row
-            finally:
-                lock.unlock_job(record_id)
+        with leased_record(
+            self._records,
+            record_id,
+            queued="queued",
+            running="running",
+        ) as row:
+            yield row
 
     def fail_job(self, record_id: str, exc: Exception) -> None:
         row = self._records.get(record_id)

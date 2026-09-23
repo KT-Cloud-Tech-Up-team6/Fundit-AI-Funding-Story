@@ -1,10 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor
+from uuid import uuid4
 
 import pytest
 from psycopg.conninfo import conninfo_to_dict
 
 from funding_story.config import Settings
 from funding_story.infrastructure.persistence import connection, repository
+from funding_story.infrastructure.ttl_state import PostgresTtlRecordRepository
+from funding_story.job_lease import leased_record
 from funding_story.migration import run_flyway
 
 
@@ -83,6 +86,40 @@ def test_runtime_pool_supports_concurrent_queries(postgres_container):
 
     with ThreadPoolExecutor(max_workers=10) as workers:
         assert list(workers.map(query, range(50))) == list(range(50))
+
+
+def test_postgres_job_lease_prevents_duplicate_work_without_holding_transaction(postgres_container):
+    records = PostgresTtlRecordRepository(repository(), 300)
+    record_id = records.create(str(uuid4()), "chat", {"status": "queued"})
+
+    with leased_record(records, record_id, queued="queued", running="running") as claimed:
+        assert claimed is not None
+        with leased_record(records, record_id, queued="queued", running="running") as duplicate:
+            assert duplicate is None
+        current = records.get(record_id)
+        current["data"]["status"] = "succeeded"
+        records.save(record_id, current["data"])
+
+    stored = records.get(record_id)
+    assert stored["data"]["status"] == "succeeded"
+    assert "_lease_token" not in stored["data"]
+
+
+def test_postgres_ttl_cleanup_releases_idempotency_key(postgres_container):
+    records = PostgresTtlRecordRepository(repository(), 300)
+    project = str(uuid4())
+    record_id = records.create(project, "session", {"status": "ready"})
+    records.add_request(project, "request-1", "fingerprint", record_id)
+    with connection() as conn:
+        conn.execute(
+            "UPDATE ai_records SET updated_at=clock_timestamp() - interval '301 seconds' WHERE id=%s",
+            (record_id,),
+        )
+
+    assert records.get_request(project, "request-1") is None
+    assert records.cleanup_expired() == 1
+    with connection() as conn:
+        assert conn.execute("SELECT 1 FROM ai_requests WHERE record_id=%s", (record_id,)).fetchone() is None
 
 
 def test_local_database_defaults_use_the_ai_port(monkeypatch):
