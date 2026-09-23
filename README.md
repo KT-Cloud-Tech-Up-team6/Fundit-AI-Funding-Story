@@ -28,7 +28,7 @@ never reads or writes the BE Core database.
 
 ### Template generation
 
-- Produces copy and images for the configured Funding Story template blocks.
+- Produces product-grounded copy and images using varied layouts without passing appliance-specific template examples to the model.
 - Generates image slots and renders PNG blocks with bounded concurrency, preserving template order.
 - Uses confirmed strengths and optional product information without fabricating unsupported content.
 - Retries failed image or rendering slots internally and reports usable partial results when needed.
@@ -37,7 +37,7 @@ never reads or writes the BE Core database.
 
 - Renders PNG output with server-side Chromium, Konva, and Pretendard.
 - Uploads generated images to BE-owned storage using short-lived upload targets.
-- Appends escaped lower-page HTML from confirmed chat facts after the PNG references when those facts are available.
+- Appends escaped lower-page HTML after the PNG references, including confirmed optional facts and a fixed Fundit crowdfunding notice.
 - Delivers generated body content, image references, and terminal status to BE through one completion callback.
 
 ## Contract at a glance

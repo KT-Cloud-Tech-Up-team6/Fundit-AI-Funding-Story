@@ -8,7 +8,7 @@
 - `message_id`, `revision`, `idempotency_key`, 프로젝트 범위, 세션당 활성 run
 - 구형 `/v1`, asset, export, run 조회·retry 경로 제거
 - `normal_price`, `product_count`, `asset_id`, 미정의 DTO 필드 거부
-- 리워드 `quantity`와 표시 개수 분리, `price`만 렌더링
+- 리워드 `quantity`와 표시 개수 분리, 원본 템플릿의 단일 `price`·브랜드 톤 가격 구분선·이미지/간격/라벨 정렬·1~3개 선물 카드
 - 이미지 슬롯 내부 재시도와 `partially_succeeded`/`failed` callback
 - 이미지 호출 동시성 상한·429 즉시 신규 호출 대기/동시성 축소·실패 슬롯 우선 재시도·실행 예산·완료 역전 시 슬롯 대응
 - PostgreSQL 공유 페이싱·병렬 429의 중복 백오프 방지·연속 성공 후 회복·worker lease 갱신/만료·DB 장애 시 호출 차단
@@ -16,7 +16,8 @@
 - 성능 판정 독립 검증: 빈 텍스트·누락 영역·부분 성공·원본 재사용·중복/빈 이미지·미해결 슬롯·PNG/HTML 누락은 실패
 - PNG 블록 병렬 렌더링·실패 블록만 재렌더링·최종 템플릿 순서 유지
 - 추가 정보 채팅 요약 → revision 확인 → 실제 PNG 렌더링 → 하단 HTML → 완료 callback 연결
-- HTML 허용 태그·입력 escape·빈 선택 항목 생략·리워드 상세 출력 제외
+- 제품 중립 이미지 설명·다양한 강점 레이아웃·청소기 예시의 비가전 프롬프트 유입 차단
+- 하단 HTML 계층·왼쪽 제목 세로선·고정 안내·입력 escape·빈 선택 항목 생략·리워드 상세 출력 제외
 - BE 업로드 대상과 성공·실패 슬롯 불변식
 - Funding Story run에 입력 snapshot·생성 문서·이미지 바이트 미저장
 - LangGraph PostgreSQL checkpoint 미사용
@@ -33,7 +34,7 @@ uv build
 
 | 실행 결과 (2026-09-23) | 결과 |
 |---|---|
-| `pytest -q` | 152 passed; Starlette 의존성 deprecation warning 1건 |
+| `pytest -q` | 158 passed; Starlette 의존성 deprecation warning 1건 |
 | `ruff check src tests scripts` | 통과 |
 | `uv build` | sdist·wheel 생성 통과 |
 

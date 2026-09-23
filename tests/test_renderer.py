@@ -54,3 +54,26 @@ def test_konva_exports_real_png_at_template_size():
     assert image.size == (860, 1724)
     assert image.getbbox()
     assert result["layout"]["metrics"]
+
+
+def test_single_price_reward_template_renders_accents_and_centers_name_glyphs():
+    block = copy.deepcopy(CATALOG["rewards"])
+    for node in block["nodes"]:
+        if node["kind"] == "image":
+            node.update(pending=True, assetId="")
+    rendered = render_scene(scene(block), {})[0]
+    image = Image.open(io.BytesIO(rendered["bytes"]))
+    for divider_y, label_y in ((714, 780), (1072, 1138), (1428, 1494)):
+        assert image.getpixel((330, divider_y)) == image.getpixel((330, label_y))
+        assert image.getpixel((330, divider_y)) != image.getpixel((330, divider_y - 20))
+    for image_top, divider_midline in ((582, 715), (940, 1073), (1296, 1429)):
+        name_pixels = [
+            y
+            for y in range(image_top, divider_midline - 2)
+            for x in range(322, 772)
+            if all(channel < 130 for channel in image.getpixel((x, y))[:3])
+        ]
+        assert name_pixels
+        assert abs(
+            (min(name_pixels) - image_top) - (divider_midline - max(name_pixels))
+        ) <= 3

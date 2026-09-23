@@ -140,10 +140,10 @@ def test_chat_confirm_real_parallel_png_html_and_completion(monkeypatch, tmp_pat
         )
         assert page.locator("main > img").count() == 2
         assert "<p>" not in page.locator("main").inner_text()
-        assert page.locator("main > p > strong").first.inner_text() == "프로젝트 예산"
-        assert page.locator("main > p").first.bounding_box()["y"] >= 3448
+        assert page.locator("main > section > h2").first.inner_text() == "프로젝트 예산"
+        assert page.locator("main > section").first.bounding_box()["y"] >= 3448
         assert (
-            page.locator("main > p > strong").first.evaluate("el => getComputedStyle(el).fontWeight") == "700"
+            page.locator("main > section > h2").first.evaluate("el => getComputedStyle(el).borderLeftWidth") == "3px"
         )
         page.screenshot(path=str(tmp_path / "generated-story.png"), full_page=True)
 
