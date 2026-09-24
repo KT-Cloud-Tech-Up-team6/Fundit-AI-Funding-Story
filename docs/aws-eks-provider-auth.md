@@ -1,5 +1,7 @@
 # AWS EKS Provider 인증 계약
 
+인프라팀이 EKS OIDC issuer와 AI 전용 ServiceAccount를 확정하면, AI팀이 Google·OpenAI 계정 관리자와 신뢰 설정을 준비한다. 인프라팀은 확정된 설정과 토큰·ADC 파일 마운트를 GitOps에 적용한다.
+
 ## 구성
 
 ```mermaid
@@ -30,32 +32,32 @@ flowchart LR
 | `OPENAI_WIF_TOKEN_FILE` | GitOps | `/var/run/secrets/openai-wif/token` |
 | OpenAI subject token | EKS | audience가 OpenAI 설정과 일치하는 projected volume |
 
-두 projected token은 같은 Kubernetes ServiceAccount가 발급받아도 audience와 mount 경로를 분리한다. 실제 값은 Git에 저장하지 않는다.
+두 projected token은 같은 Kubernetes ServiceAccount가 발급받아도 audience와 mount 경로를 분리한다. 토큰 원문과 비밀값은 Git에 저장하지 않는다.
 
 ## OpenAI WIF
 
-| 순서 | 인프라·관리자 작업 | 확인값 |
+| 순서 | 담당·작업 | 확인값 |
 |---:|---|---|
-| 1 | AI 전용 Kubernetes ServiceAccount 생성 | `system:serviceaccount:<namespace>:funding-story-ai` |
-| 2 | EKS cluster OIDC issuer 조회 | token `iss`와 동일 |
-| 3 | audience `https://api.openai.com/v1` projected token mount | token `aud`와 동일 |
-| 4 | OpenAI Platform에 EKS issuer 기반 provider 생성 | `OPENAI_IDENTITY_PROVIDER_ID` |
-| 5 | 정확한 ServiceAccount `sub`를 OpenAI project service account에 매핑 | `OPENAI_SERVICE_ACCOUNT_ID` |
-| 6 | mapping 권한을 최소 `api.model.request`로 제한 | 이미지 API 호출 가능 |
+| 1 | 인프라: AI 전용 Kubernetes ServiceAccount 생성 | `system:serviceaccount:<namespace>:funding-story-ai` |
+| 2 | 인프라: EKS cluster OIDC issuer 조회 | token `iss`와 동일 |
+| 3 | 인프라: audience `https://api.openai.com/v1` projected token mount | token `aud`와 동일 |
+| 4 | AI·OpenAI 관리자: EKS issuer 기반 provider 생성 | `OPENAI_IDENTITY_PROVIDER_ID` |
+| 5 | AI·OpenAI 관리자: 정확한 ServiceAccount `sub`를 OpenAI project service account에 매핑 | `OPENAI_SERVICE_ACCOUNT_ID` |
+| 6 | AI·OpenAI 관리자: mapping 권한을 최소 `api.model.request`로 제한 | 이미지 API 호출 가능 |
 
 참고: [OpenAI AWS WIF](https://developers.openai.com/api/docs/guides/workload-identity-federation/aws)
 
 ## Gemini ADC
 
-| 순서 | 인프라 작업 | 결과 |
+| 순서 | 담당·작업 | 결과 |
 |---:|---|---|
-| 1 | GCP Workload Identity Pool provider가 EKS issuer를 신뢰하도록 구성 | EKS OIDC 검증 |
-| 2 | `sub`를 AI 전용 ServiceAccount로 제한 | namespace·workload 격리 |
-| 3 | 대상 GCP service account에 Vertex AI 최소 권한 부여 | Gemini 호출 권한 |
-| 4 | projected token file을 참조하는 `external_account` JSON 생성 | 장기 private key 없음 |
-| 5 | JSON과 subject token을 read-only mount | ADC 자동 로드 |
+| 1 | AI·GCP 관리자: Workload Identity Pool provider가 EKS issuer를 신뢰하도록 구성 | EKS OIDC 검증 |
+| 2 | AI·GCP 관리자: `sub`를 AI 전용 ServiceAccount로 제한 | namespace·workload 격리 |
+| 3 | AI·GCP 관리자: 대상 GCP service account에 Vertex AI 최소 권한 부여 | Gemini 호출 권한 |
+| 4 | AI·GCP 관리자: projected token file을 참조하는 `external_account` JSON 생성 | 장기 private key 없음 |
+| 5 | 인프라: JSON과 subject token을 read-only mount | ADC 자동 로드 |
 
-external-account 설정에는 다음 구조가 필요하다. placeholder는 인프라 환경값으로 교체한다.
+external-account 설정에는 다음 구조가 필요하다. placeholder는 Google 설정값과 인프라팀이 확정한 EKS 값으로 교체한다.
 
 ```json
 {

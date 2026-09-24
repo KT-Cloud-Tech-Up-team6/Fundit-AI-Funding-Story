@@ -168,6 +168,7 @@ and migration validation. Rendering tests use real Chromium and Pretendard.
 - [OpenAPI](docs/openapi.json)
 - [Development and configuration](docs/development.md)
 - [Funding Story AI deployment environment variables](docs/funding-story-ai-env.md)
+- [Funding Story AI infrastructure delivery](docs/funding-story-ai-infra-delivery.md)
 - [Content Insights API design](docs/content-insights-api-design.md)
 - [Content Insights integration](docs/content-insights-integration-interface.md)
 - [Content Insights operations](docs/content-insights-operations.md)
