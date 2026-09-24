@@ -1,6 +1,6 @@
-# Funding Story AI — 인프라팀 전달용 배포 설정
+# Funding Story AI — AI·BE·Infra 배포 연동 인계
 
-이 문서는 AI 서비스가 AWS EKS에서 실행될 때 필요한 **환경변수와 외부 인증 설정**을 전달하기 위한 내용이다. dev/prod의 실제 값과 Secret은 인프라·GitOps 설정에서 관리하고, 비밀번호·토큰 원문은 Notion이나 Git에 적지 않는다.
+이 문서는 AI·BE·Infra/GitOps가 함께 확인할 **서비스 연동·환경변수·외부 인증 계약**이다. dev/prod의 실제 값과 Secret은 인프라·GitOps 설정에서 관리하고, 비밀번호·토큰 원문은 Notion이나 Git에 적지 않는다.
 
 **이 문서만으로 서비스가 바로 동작하지는 않는다.** 아래 변수의 실제 값뿐 아니라 EKS 토큰 마운트, Google·OpenAI 측 WIF 신뢰·권한 설정, DB·BE 연결이 준비되어야 한다. 설정이 완료되면 SDK가 EKS 토큰으로 단기 접근 토큰을 받아 사용하므로 운영용 Google private key나 OpenAI API key는 필요하지 않다. `/health/ready`는 DB 준비 상태를 확인하며 외부 모델 호출 권한까지 확인하지는 않는다.
 

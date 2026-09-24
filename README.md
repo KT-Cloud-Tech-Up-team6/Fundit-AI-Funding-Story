@@ -167,7 +167,7 @@ and migration validation. Rendering tests use real Chromium and Pretendard.
 - [API and execution contract](docs/architecture.md)
 - [OpenAPI](docs/openapi.json)
 - [Development and configuration](docs/development.md)
-- [AWS deployment configuration handoff](docs/aws-infra-handoff.md)
+- [Funding Story AI, BE, and Infra deployment handoff](docs/funding-story-deployment-handoff.md)
 - [Content Insights API design](docs/content-insights-api-design.md)
 - [Content Insights integration](docs/content-insights-integration-interface.md)
 - [Content Insights operations](docs/content-insights-operations.md)
