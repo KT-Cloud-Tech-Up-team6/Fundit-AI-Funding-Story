@@ -2,11 +2,14 @@
 
 이 문서는 AI 서비스가 AWS EKS에서 실행될 때 필요한 **환경변수와 외부 인증 설정**을 전달하기 위한 내용이다. dev/prod의 실제 값과 Secret은 인프라·GitOps 설정에서 관리하고, 비밀번호·토큰 원문은 Notion이나 Git에 적지 않는다.
 
+**이 문서만으로 서비스가 바로 동작하지는 않는다.** 아래 변수의 실제 값뿐 아니라 EKS 토큰 마운트, Google·OpenAI 측 WIF 신뢰·권한 설정, DB·BE 연결이 준비되어야 한다. 설정이 완료되면 SDK가 EKS 토큰으로 단기 접근 토큰을 받아 사용하므로 운영용 Google private key나 OpenAI API key는 필요하지 않다. `/health/ready`는 DB 준비 상태를 확인하며 외부 모델 호출 권한까지 확인하지는 않는다.
+
 ## 서비스 정보
 
 - **저장소:** [Fundit-AI-Funding-Story](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story)
 - **이미지:** `899957568205.dkr.ecr.ap-northeast-2.amazonaws.com/fundit-ai-funding-story:sha-<commit SHA>`
 - **이미지 게시:** `main` push 시 GitHub OIDC로 ECR에 업로드하도록 설정 완료. EKS 배포는 별도 GitOps 설정이 필요하다.
+- **운영 모델:** `MODEL_PROFILE=runtime`에서 텍스트는 Vertex AI `gemini-3.8-flash`, 이미지는 OpenAI `gpt-image-2.5-flare`를 사용한다. 각 대상 project의 모델 호출 권한이 필요하다.
 - **API:** 이미지 기본 명령, 포트 `8000`. 상태 확인 경로는 `/health`, `/health/ready`.
 - **worker:** 같은 이미지에서 아래 명령을 실행한다. `<lane>`은 `funding-story`, `page-summary`, `storyline` 중 하나이며 각각 별도 프로세스가 필요하다.
 
