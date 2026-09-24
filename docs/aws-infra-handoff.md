@@ -60,4 +60,22 @@ API와 세 worker에 같은 DB·서비스 연동·Provider 설정을 전달한�
 
 GitHub Actions의 ECR push용 AWS IAM Role은 **CI 인증**에 사용된다. 위 Google/OpenAI WIF는 **EKS 런타임 인증**이다. WIF의 신뢰·권한 설정과 ADC 설정 파일은 환경변수만으로 만들어지지 않는다.
 
+## 담당 구분
+
+**우리 팀 (Funding Story AI)**
+
+- API·worker 코드, 사용할 모델, 환경변수 이름, DB migration SQL, 인증 점검 도구를 제공한다. 앱의 ADC/WIF 사용 코드는 준비되어 있다.
+- 사용할 GCP project와 OpenAI 조직·project를 정하고, 해당 관리자와 모델 호출 권한 및 WIF 등록을 협의한다. 로컬 개인 로그인 정보·API key를 Pod에 전달하지 않는다.
+- BE와 `AI_SERVICE_TOKEN`·`INTERNAL_API_KEY`의 양방향 인증 계약을 맞추고, 배포 후 실제 Gemini·OpenAI 호출이 가능한지 확인한다.
+
+**인프라팀 / GitOps**
+
+- EKS namespace·ServiceAccount·OIDC issuer를 확정하고, Google/OpenAI용 projected token을 각 audience에 맞춰 읽을 수 있는 경로로 마운트한다.
+- ECR pull, API·worker 배포, 환경변수·Secret 참조, Google ADC 설정 파일 mount, DB·BE·외부 Provider 네트워크와 별도 Flyway Job을 구성한다.
+- EKS의 정확한 issuer·ServiceAccount subject·audience를 Google/OpenAI 설정 담당자에게 전달한다.
+
+**Google·OpenAI 계정 관리자와 공동 확인**
+
+- Google Workload Identity Pool/Provider 및 Vertex AI 권한, OpenAI WIF provider·service account 매핑과 모델 권한을 생성한다. 이 작업은 해당 계정의 관리자 권한이 필요하므로, 인프라팀에 권한이 없다면 우리 팀 또는 계정 관리자가 담당한다.
+
 상세 기술 계약: [EKS Provider 인증](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story/blob/main/docs/aws-eks-provider-auth.md) · [설정 코드](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story/blob/main/src/funding_story/config.py)
