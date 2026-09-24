@@ -125,7 +125,7 @@ PR에서는 기존 테스트가 통과한 뒤 `linux/amd64` Docker 이미지를 
 
 게시 워크플로에는 `environment:`와 AWS Access Key를 설정하지 않는다. API·worker의 배포 환경 변수와 Secret은 위 [설치와 설정](#설치와-설정) 및 [EKS Provider 인증 계약](aws-eks-provider-auth.md)을 따른다. DB migration과 실제 EKS 배포는 별도 Job·GitOps에서 진행한다.
 
-인프라팀에 전달할 환경별 값·인증 설정·배포 리소스·검증 순서는 [AWS 배포·운영 인프라 인계](aws-infra-handoff.md)에 정리했다.
+인프라팀에 전달할 환경변수와 런타임 인증 요건은 [AWS 배포 설정 인계](aws-infra-handoff.md)에 정리했다.
 
 ## PostgreSQL 운영 전환 계약
 
