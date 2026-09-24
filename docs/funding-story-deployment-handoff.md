@@ -51,6 +51,11 @@ API와 세 worker에 같은 DB·서비스 연동·Provider 설정을 전달한�
 - `OPENAI_WIF_AUDIENCE` — OpenAI용 projected token의 audience. 현재 예시값은 `https://api.openai.com/v1`.
 - `OPENAI_WIF_TOKEN_FILE` — Pod에 마운트한 OpenAI용 projected token의 **경로**. 예: `/var/run/secrets/openai-wif/token`.
 
+## BE 측 배포값과 HTTP 계약
+
+- **배포 환경변수:** `FUNDING_STORY_AI_URL`은 AI 내부 주소, `FUNDING_STORY_AI_TOKEN`은 AI의 `AI_SERVICE_TOKEN`과 같은 값이다. BE의 `INTERNAL_API_KEY`는 AI가 BE로 보내는 내부 키와 일치해야 한다.
+- **HTTP 계약:** `X-Project-Id`는 요청할 때 전달하는 프로젝트 ID 헤더다. 업로드 대상 발급·완료 callback의 경로와 요청·응답 형식, presigned URL 발급도 API 연동 계약이다. 이들은 환경변수 값이 아니다.
+
 ## 환경변수 외에 필요한 설정
 
 - **Google WIF/ADC:** EKS ServiceAccount의 OIDC 토큰을 신뢰하는 Google Workload Identity Pool/Provider와 Vertex AI 권한이 필요하다. `GOOGLE_APPLICATION_CREDENTIALS`가 가리키는 `external_account` JSON에는 Google용 토큰 파일 경로가 들어간다. Google 서비스 계정 private key는 사용하지 않는다.
@@ -70,7 +75,7 @@ GitHub Actions의 ECR push용 AWS IAM Role은 **CI 인증**에 사용된다. 위
 
 **BE 팀 (Project Service)**
 
-- 사용자 요청·프로젝트 데이터에서 AI 내부 API를 호출하며 `X-Project-Id`를 전달한다. `FUNDING_STORY_AI_URL`은 AI 내부 주소로, `FUNDING_STORY_AI_TOKEN`은 AI 측 `AI_SERVICE_TOKEN`과 같은 값으로 설정한다.
+- 위 BE 배포값을 사용해 AI 내부 API를 호출하며, 요청의 프로젝트 ID를 `X-Project-Id`로 전달한다.
 - AI의 업로드 대상 요청·완료 callback을 수신하고 `X-Internal-Api-Key`를 검증한다. 이미지 입출력용 presigned URL과 결과 저장을 담당한다.
 - 양방향 인증값과 요청·응답 계약을 AI 팀과 맞춘다. AI DB에는 직접 접근하지 않는다.
 
