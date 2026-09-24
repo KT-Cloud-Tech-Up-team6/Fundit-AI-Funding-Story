@@ -9,15 +9,15 @@
 | `APP_ENV` | `dev` 또는 `prod` |
 | `MODEL_PROFILE` | `runtime` |
 
-## AI PostgreSQL
+## PostgreSQL (백엔드와 공유하는 DB)
 
 | 환경변수 | 값 |
 | --- | --- |
-| `DB_HOST` | `<AI_DB_HOST>` |
-| `DB_PORT` | `<AI_DB_PORT>` |
-| `DB_NAME` | `<AI_DB_NAME>` |
-| `DB_USERNAME` | `<AI_DB_USERNAME>` (Secret 참조) |
-| `DB_PASSWORD` | `<AI_DB_PASSWORD>` (Secret 참조) |
+| `DB_HOST` | `<DB_HOST>` |
+| `DB_PORT` | `<DB_PORT>` |
+| `DB_NAME` | `<DB_NAME>` |
+| `DB_USERNAME` | `<DB_USERNAME>` (Secret 참조) |
+| `DB_PASSWORD` | `<DB_PASSWORD>` (Secret 참조) |
 | `DB_SSLMODE` | DB의 TLS 모드 (필요한 경우만) |
 
 ## BE 연결에 사용하는 AI 서비스 설정
