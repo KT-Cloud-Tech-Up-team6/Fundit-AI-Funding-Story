@@ -62,20 +62,24 @@ GitHub Actions의 ECR push용 AWS IAM Role은 **CI 인증**에 사용된다. 위
 
 ## 담당 구분
 
-**우리 팀 (Funding Story AI)**
+**AI 팀**
 
 - API·worker 코드, 사용할 모델, 환경변수 이름, DB migration SQL, 인증 점검 도구를 제공한다. 앱의 ADC/WIF 사용 코드는 준비되어 있다.
 - 사용할 GCP project와 OpenAI 조직·project를 정하고, 해당 관리자와 모델 호출 권한 및 WIF 등록을 협의한다. 로컬 개인 로그인 정보·API key를 Pod에 전달하지 않는다.
-- BE와 `AI_SERVICE_TOKEN`·`INTERNAL_API_KEY`의 양방향 인증 계약을 맞추고, 배포 후 실제 Gemini·OpenAI 호출이 가능한지 확인한다.
+- BE가 보내는 `AI_SERVICE_TOKEN`을 검증하고, AI → BE 요청에 `INTERNAL_API_KEY`를 사용한다. 배포 후 실제 Gemini·OpenAI 호출을 확인한다.
+
+**BE 팀 (Project Service)**
+
+- 사용자 요청·프로젝트 데이터에서 AI 내부 API를 호출하며 `X-Project-Id`를 전달한다. `FUNDING_STORY_AI_URL`은 AI 내부 주소로, `FUNDING_STORY_AI_TOKEN`은 AI 측 `AI_SERVICE_TOKEN`과 같은 값으로 설정한다.
+- AI의 업로드 대상 요청·완료 callback을 수신하고 `X-Internal-Api-Key`를 검증한다. 이미지 입출력용 presigned URL과 결과 저장을 담당한다.
+- 양방향 인증값과 요청·응답 계약을 AI 팀과 맞춘다. AI DB에는 직접 접근하지 않는다.
 
 **인프라팀 / GitOps**
 
 - EKS namespace·ServiceAccount·OIDC issuer를 확정하고, Google/OpenAI용 projected token을 각 audience에 맞춰 읽을 수 있는 경로로 마운트한다.
-- ECR pull, API·worker 배포, 환경변수·Secret 참조, Google ADC 설정 파일 mount, DB·BE·외부 Provider 네트워크와 별도 Flyway Job을 구성한다.
+- ECR pull, API·worker 배포, 양쪽 서비스의 환경변수·Secret 참조, Google ADC 설정 파일 mount, DB·BE·외부 Provider 네트워크와 별도 Flyway Job을 구성한다.
 - EKS의 정확한 issuer·ServiceAccount subject·audience를 Google/OpenAI 설정 담당자에게 전달한다.
 
-**Google·OpenAI 계정 관리자와 공동 확인**
-
-- Google Workload Identity Pool/Provider 및 Vertex AI 권한, OpenAI WIF provider·service account 매핑과 모델 권한을 생성한다. 이 작업은 해당 계정의 관리자 권한이 필요하므로, 인프라팀에 권한이 없다면 우리 팀 또는 계정 관리자가 담당한다.
+Google Workload Identity Pool/Provider·Vertex AI 권한과 OpenAI WIF provider·service account 매핑은 해당 계정의 관리자 권한이 필요하다. 인프라팀에 권한이 없다면 AI 팀이 계정 관리자와 진행하고, 인프라팀은 EKS 신원값을 제공한다.
 
 상세 기술 계약: [EKS Provider 인증](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story/blob/main/docs/aws-eks-provider-auth.md) · [설정 코드](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-AI-Funding-Story/blob/main/src/funding_story/config.py)
