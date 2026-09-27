@@ -183,3 +183,38 @@ def test_legacy_fields_and_routes_are_not_accepted(client):
     assert client.post(PREFIX + "/assets").status_code == 404
     assert client.get(PREFIX + "/runs/not-an-ai-query").status_code == 404
     assert client.post(PREFIX + "/runs/not-an-ai-query/retry").status_code == 404
+
+
+def test_page_summary_and_storyline_apis_are_separate(client, monkeypatch):
+    from test_application import FakeRecordRepository
+
+    from funding_story.content_insights import ContentInsightsApplication
+
+    monkeypatch.setattr(
+        "funding_story.content_insights.api.content_insights_application",
+        ContentInsightsApplication(FakeRecordRepository()),
+    )
+    body = {
+        "source_revision": 1,
+        "idempotency_key": "summary-1",
+        "trigger": "PROJECT_REGISTRATION_COMPLETED",
+        "project_snapshot": {"title": "LUMI S1", "description": "무선 청소기"},
+    }
+    created = client.post(PREFIX + "/page-summary-runs", json=body)
+    assert created.status_code == 202
+    page = created.json()
+    assert page["artifacts"]["PAGE_SUMMARY"]["status"] == "QUEUED"
+    assert page["artifacts"]["STORYLINE"]["status"] == "NOT_REQUESTED"
+    assert client.get(PREFIX + f"/page-summary-runs/{page['run_id']}").status_code == 200
+    assert client.get(PREFIX + f"/storyline-runs/{page['run_id']}").status_code == 404
+
+    invalid = client.post(PREFIX + "/storyline-runs", json=body)
+    assert invalid.status_code == 422
+    storyline = client.post(
+        PREFIX + "/storyline-runs",
+        json={**body, "trigger": "STORY_CONFIRMED"},
+    )
+    assert storyline.status_code == 202
+    assert storyline.json()["artifacts"]["PAGE_SUMMARY"]["status"] == "NOT_REQUESTED"
+    assert client.get(PREFIX + f"/page-summary-runs/{page['run_id']}").json()["status"] == "QUEUED"
+    assert client.post(PREFIX + "/content-insight-runs", json=body).status_code == 404

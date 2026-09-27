@@ -9,9 +9,14 @@ def test_checked_in_openapi_matches_application():
 
 
 def test_content_insight_openapi_contains_request_and_response_examples():
-    operation = app.openapi()["paths"]["/api/v1/ai/content-insight-runs"]["post"]
+    paths = app.openapi()["paths"]
+    assert "/api/v1/ai/content-insight-runs" not in paths
+    assert "/api/v1/ai/storyline-runs" in paths
+    operation = paths["/api/v1/ai/page-summary-runs"]["post"]
     request = operation["requestBody"]["content"]["application/json"]
     response = operation["responses"]["202"]["content"]["application/json"]
 
     assert request["examples"]["registration"]["value"]["trigger"] == "PROJECT_REGISTRATION_COMPLETED"
+    assert "requested_artifacts" not in request["examples"]["registration"]["value"]
     assert response["example"]["artifacts"]["PAGE_SUMMARY"]["required"] is True
+    assert response["example"]["artifacts"]["STORYLINE"]["status"] == "NOT_REQUESTED"
