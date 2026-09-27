@@ -2,6 +2,8 @@
 
 기준: 2026-09-23, Funding Story API 계약.
 
+Content Insights 관련 아래 단일 API·Storyline 등록 필수 항목은 이전 정책 검증 기록이다. 현행 계약은 [통합 인터페이스](content-insights-integration-interface.md)와 [OpenAPI](openapi.json)를 따른다.
+
 ## 자동 검증
 
 - `/api/v1/ai` 세션 → 첫 질문 → SSE → 요약 확인 → 전체 run 접수

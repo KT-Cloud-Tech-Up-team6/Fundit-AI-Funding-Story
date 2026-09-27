@@ -2,7 +2,7 @@
 
 최초 작성: 2026-09-17
 최종 검증: 2026-09-18
-상태: AI API 0.3.0과 제품 정책 구현 완료. Backend·FE는 통합 인터페이스만 확정했으며 실제 구현·배포는 외부 저장소 작업.
+상태: 2026-09-18 당시 구현 기록. 현재 단일 API·Storyline 등록 필수 정책은 폐기되었다. 현행 계약은 [통합 인터페이스](content-insights-integration-interface.md)와 [OpenAPI](openapi.json)를 따른다.
 
 설계 문서: [필수 프로젝트 콘텐츠 생성 API 설계](content-insights-api-design.md)
 통합 계약: [Content Insights 통합 인터페이스](content-insights-integration-interface.md)
