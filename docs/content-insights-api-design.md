@@ -9,7 +9,7 @@
 
 ## 1. 배경
 
-현재 Funding Story AI의 생성 결과인 `CopyResult`에는 상세 페이지 원고와 함께 `summary`, `storyline`이 포함된다. 이 구조에서는 사용자가 선택 기능인 Funding Story AI를 실행해야만 페이지 요약과 스토리라인을 얻을 수 있다.
+초기 Funding Story AI의 `CopyResult`에는 상세 페이지 원고와 함께 `summary`, `storyline`이 포함되어 있었다. 이 구조에서는 사용자가 선택 기능인 Funding Story AI를 실행해야만 페이지 요약과 스토리라인을 얻을 수 있었다. 현재 `CopyResult`는 원고와 이미지 프롬프트만 생성하며, 두 요약 결과는 Content Insights API에서 별도로 생성한다.
 
 펀딩 상세 페이지 요약과 스토리라인은 프로젝트 등록 과정에서 반드시 생성되어야 하며 선택적 Funding Story 생성 흐름에 종속되어서는 안 된다.
 
@@ -472,27 +472,7 @@ funding-story
 
 ## 14. 기존 Funding Story 계약 전환
 
-현재 `CopyResult.summary`, `CopyResult.storyline`, `ExportResult.project_summary`를 필수 공개 데이터의 기준으로 사용하지 않는다.
-
-현재 저장소와 연동 저장소에서 확인한 소비자는 다음과 같다.
-
-| 기존 결과 | 확인된 소비자 | 전환 상태 |
-|---|---|---|
-| `CopyResult.summary`, `CopyResult.storyline` | AI 조립·export와 FE Funding Story modal/contract | 선택적 작성 과정의 preview로 유지 |
-| `ExportResult.project_summary` | Project Service의 Funding Story export 저장 경로 | 호환 preview로 유지하고 canonical 저장과 분리 |
-| Content Insights canonical 결과 | Project Service outbox/polling 저장, 공개 상세·소유자 preview API, FE 공개 상세 | 목표 통합 계약 확정, 외부 저장소 적용은 별도 작업 |
-| Live Summary | FE가 별도 타입으로 표시하며 값이 없으면 생략 | 별도 실행 결과를 `LIVE_SUMMARY`로 표시하고 Content Insights artifact와 구분 |
-
-전환 순서:
-
-1. Content Insights API와 artifact 저장을 추가한다.
-2. Project Service가 프로젝트 등록 완료 시 새 API를 호출한다.
-3. Project Service가 Content Insights 결과를 최신 project revision에 저장한다.
-4. FE와 라이브 준비 흐름이 Project Service의 canonical 결과를 사용한다.
-5. 기존 export의 `project_summary`는 최소 한 릴리스 동안 preview임을 명시한다.
-6. 소비자가 모두 전환되면 기존 `summary`·`storyline` 생성과 export 필드를 제거하거나 명시적인 authoring preview 계약으로 변경한다.
-
-호환 기간에도 같은 필드명을 가진 두 결과를 모두 canonical로 취급하지 않는다. Project Service가 저장한 Content Insights 결과만 공개 기준이다.
+Funding Story 원고 생성의 `CopyResult`는 `texts`, `image_prompts`만 포함한다. 사용자 입력 확인용 `SessionResponse.summary`는 채팅 단계에서 유지하며, 공개 상세의 페이지 요약과 스토리라인은 Content Insights의 `PAGE_SUMMARY`, `STORYLINE` 결과를 사용한다. 두 API 결과의 BE 저장·FE 표시 연동은 별도 저장소 적용 범위다.
 
 ## 15. 향후 API 분리 경로
 
