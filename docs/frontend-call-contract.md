@@ -45,10 +45,10 @@ FE는 Content Insights AI endpoint를 직접 호출하지 않고 Project Service
 
 | type | 의미 | 생성 기준 | 미존재 처리 |
 |---|---|---|---|
-| `PAGE_SUMMARY` | 프로젝트 상세 페이지 요약 | 등록 프로젝트 snapshot | 필수 결과 준비 전 공개·준비 상태 정책 적용 |
-| `STORYLINE` | 프로젝트의 What·Why 요약 | 등록 시 필수 Storyline artifact | 성공 시 두 개의 제목·설명 블록 표시 |
+| `PAGE_SUMMARY` | What·Why 각각 제목·설명 | 등록 프로젝트 snapshot | 필수 결과 준비 전 공개·준비 상태 정책 적용 |
 | `LIVE_SUMMARY` | 종료 라이브 요약 | 종료된 라이브 결과 | 라이브 미진행 시 생략 |
 
-`STORYLINE` 내부의 의미 구분명은 FE에 노출하지 않는다. Project Service가 role을 제거한
-`headline`·`description`을 순서대로 렌더링한다. 사용자에게 보여주는 요약 확인 메시지와
+`STORYLINE`은 별도 API의 후속 AI 큐시트용 결과이며 공개 상세에 표시하지 않는다.
+Project Service가 전달할 `PAGE_SUMMARY.sections`의 두 `headline`·`description`을 순서대로 렌더링한다. AI 내부 `role`은 공개하지 않는다. BE·FE 코드 적용은 별도다.
+사용자에게 보여주는 요약 확인 메시지와
 Content Insights canonical 결과를 같은 데이터로 취급하지 않는다.
