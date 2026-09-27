@@ -147,7 +147,14 @@ def test_generation_requirements_preserve_block_categories_and_all_slots():
     assert all("reference" not in text for block in by_id.values() for text in block["texts"])
 
     with pytest.raises(ValueError, match="슬롯 ID"):
-        validate_copy(CopyResult(texts={}, image_prompts={}, summary="", storyline=""), scene, fixed)
+        validate_copy(CopyResult(texts={}, image_prompts={}), scene, fixed)
+
+
+def test_copy_result_rejects_legacy_summary_fields():
+    with pytest.raises(ValidationError):
+        CopyResult.model_validate(
+            {"texts": {}, "image_prompts": {}, "summary": "중복 요약", "storyline": "중복 스토리라인"}
+        )
 
 
 def test_generation_plan_allows_a_project_without_source_images():

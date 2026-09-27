@@ -120,8 +120,6 @@ def test_generation_retries_failed_image_then_reports_partial_success(monkeypatc
     draft = CopyResult(
         texts={},
         image_prompts={"hero.image": "hero", "benefit.image": "benefit"},
-        summary="요약",
-        storyline="이야기",
     )
     attempts = []
 
