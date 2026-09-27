@@ -14,7 +14,6 @@ CREATE_EXAMPLE = {
     "source_revision": 42,
     "idempotency_key": "11111111-1111-1111-1111-111111111111:content-insights:42",
     "trigger": "PROJECT_REGISTRATION_COMPLETED",
-    "requested_artifacts": ["PAGE_SUMMARY", "STORYLINE"],
     "project_snapshot": {
         "title": "LUMI S1",
         "category": "테크·가전",
@@ -48,9 +47,9 @@ RUN_EXAMPLE = {
             "error": None,
         },
         "STORYLINE": {
-            "artifact_id": "44444444-4444-4444-4444-444444444444",
-            "status": "QUEUED",
-            "required": True,
+            "artifact_id": None,
+            "status": "NOT_REQUESTED",
+            "required": False,
             "attempts": 0,
             "output": None,
             "prompt_version": None,
@@ -75,7 +74,7 @@ def kick(artifact_id: str, artifact_type: ArtifactType) -> None:
 
 
 @router.post(
-    "/content-insight-runs",
+    "/page-summary-runs",
     status_code=202,
     response_model=ContentInsightRunResponse,
     responses={
@@ -85,24 +84,48 @@ def kick(artifact_id: str, artifact_type: ArtifactType) -> None:
         }
     },
 )
-def create_content_insight_run(body: CreateBody, project: Project):
-    result, dispatch = content_insights_application.create_run(body, project)
+def create_page_summary_run(body: CreateBody, project: Project):
+    result, dispatch = content_insights_application.create_run(body, project, ArtifactType.PAGE_SUMMARY)
     for artifact_id, artifact_type in dispatch:
         kick(artifact_id, artifact_type)
     return result
 
 
-@router.get("/content-insight-runs/{run_id}", response_model=ContentInsightRunResponse)
-def get_content_insight_run(run_id: str, project: Project):
-    return content_insights_application.get_run(run_id, project)
+@router.get("/page-summary-runs/{run_id}", response_model=ContentInsightRunResponse)
+def get_page_summary_run(run_id: str, project: Project):
+    return content_insights_application.get_run(run_id, project, ArtifactType.PAGE_SUMMARY)
 
 
 @router.post(
-    "/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry",
+    "/page-summary-runs/{run_id}/retry",
     status_code=202,
     response_model=ContentInsightRunResponse,
 )
-def retry_content_insight_artifact(run_id: str, artifact_type: ArtifactType, project: Project):
-    result, dispatch = content_insights_application.retry_artifact(run_id, artifact_type, project)
+def retry_page_summary_run(run_id: str, project: Project):
+    result, dispatch = content_insights_application.retry_artifact(
+        run_id, ArtifactType.PAGE_SUMMARY, project
+    )
+    kick(*dispatch)
+    return result
+
+
+@router.post("/storyline-runs", status_code=202, response_model=ContentInsightRunResponse)
+def create_storyline_run(body: ContentInsightCreateRequest, project: Project):
+    result, dispatch = content_insights_application.create_run(body, project, ArtifactType.STORYLINE)
+    for artifact_id, artifact_type in dispatch:
+        kick(artifact_id, artifact_type)
+    return result
+
+
+@router.get("/storyline-runs/{run_id}", response_model=ContentInsightRunResponse)
+def get_storyline_run(run_id: str, project: Project):
+    return content_insights_application.get_run(run_id, project, ArtifactType.STORYLINE)
+
+
+@router.post("/storyline-runs/{run_id}/retry", status_code=202, response_model=ContentInsightRunResponse)
+def retry_storyline_run(run_id: str, project: Project):
+    result, dispatch = content_insights_application.retry_artifact(
+        run_id, ArtifactType.STORYLINE, project
+    )
     kick(*dispatch)
     return result

@@ -38,8 +38,8 @@ class RunStatus(str, Enum):
 
 
 class StorylineSectionRole(str, Enum):
-    REWARD_IDENTITY = "REWARD_IDENTITY"
-    PROJECT_REASON = "PROJECT_REASON"
+    WHAT = "WHAT"
+    WHY = "WHY"
 
 
 class ProjectReward(StrictModel):
@@ -73,15 +73,7 @@ class ContentInsightCreateRequest(StrictModel):
     source_revision: int = Field(ge=1)
     idempotency_key: str = Field(min_length=1, max_length=120)
     trigger: ContentInsightTrigger
-    requested_artifacts: list[ArtifactType] = Field(default_factory=list, max_length=2)
     project_snapshot: ProjectSnapshot
-
-    @field_validator("requested_artifacts")
-    @classmethod
-    def unique_artifacts(cls, value):
-        if len(set(value)) != len(value):
-            raise ValueError("requested_artifacts는 중복될 수 없습니다.")
-        return value
 
 
 class StorylineSection(StrictModel):
@@ -94,9 +86,9 @@ class StorylineSection(StrictModel):
     def validate_display_line(cls, value):
         normalized = value.strip()
         if len(normalized) < 2:
-            raise ValueError("스토리라인의 헤드라인과 상세 설명은 비어 있을 수 없습니다.")
+            raise ValueError("요약 블록의 헤드라인과 상세 설명은 비어 있을 수 없습니다.")
         if "\n" in normalized or "\r" in normalized:
-            raise ValueError("스토리라인의 헤드라인과 상세 설명은 각각 한 줄이어야 합니다.")
+            raise ValueError("요약 블록의 헤드라인과 상세 설명은 각각 한 줄이어야 합니다.")
         if any(label in normalized.upper() for label in ("WHAT", "WHY", "DIFFERENCE")):
             raise ValueError("내부 의미 구분명은 사용자 노출 문구에 포함할 수 없습니다.")
         stem = normalized.rstrip(" .!?。")
@@ -126,7 +118,7 @@ class StorylineSection(StrictModel):
                 "없다",
             )
         ):
-            raise ValueError("스토리라인은 '~다' 또는 '~습니다' 종결형이 아닌 개조식이어야 합니다.")
+            raise ValueError("요약 블록은 '~다' 또는 '~습니다' 종결형이 아닌 개조식이어야 합니다.")
         return normalized
 
 
@@ -180,24 +172,24 @@ class ContentInsightRunResponse(StrictModel):
 
 
 class PageSummaryDraft(StrictModel):
-    content: str = Field(min_length=10, max_length=600)
-
-    @field_validator("content")
-    @classmethod
-    def normalize_content(cls, value):
-        return value.strip()
-
-
-class StorylineDraft(StrictModel):
     sections: list[StorylineSection] = Field(min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def require_fixed_section_order(self):
         roles = [section.role for section in self.sections]
         expected = [
-            StorylineSectionRole.REWARD_IDENTITY,
-            StorylineSectionRole.PROJECT_REASON,
+            StorylineSectionRole.WHAT,
+            StorylineSectionRole.WHY,
         ]
         if roles != expected:
-            raise ValueError("스토리라인은 리워드 정체성, 프로젝트 필요성 순서여야 합니다.")
+            raise ValueError("페이지 요약은 WHAT, WHY 순서여야 합니다.")
         return self
+
+
+class StorylineDraft(StrictModel):
+    content: str = Field(min_length=10, max_length=600)
+
+    @field_validator("content")
+    @classmethod
+    def normalize_content(cls, value):
+        return value.strip()
