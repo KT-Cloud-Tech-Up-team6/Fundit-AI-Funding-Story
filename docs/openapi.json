@@ -74,7 +74,11 @@
                       "story_content": [
                         {
                           "type": "TEXT",
-                          "value": "좁은 공간의 청소 부담을 줄이기 위해 준비했습니다."
+                          "value": "<p>좁은 공간의 청소 부담을 줄이기 위해 준비했습니다.</p>"
+                        },
+                        {
+                          "type": "IMAGE",
+                          "value": "https://fundit-assets.s3.ap-northeast-2.amazonaws.com/projects/example/body.png"
                         }
                       ]
                     }
@@ -1617,28 +1621,6 @@
         ],
         "title": "MessageRequest"
       },
-      "ProjectContentBlock": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "TEXT",
-            "title": "Type"
-          },
-          "value": {
-            "type": "string",
-            "maxLength": 20000,
-            "minLength": 1,
-            "title": "Value"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "type",
-          "value"
-        ],
-        "title": "ProjectContentBlock"
-      },
       "ProjectFact": {
         "properties": {
           "business_type": {
@@ -1674,6 +1656,84 @@
           "goal_amount"
         ],
         "title": "ProjectFact"
+      },
+      "ProjectImageBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "IMAGE",
+            "title": "Type"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Value"
+          },
+          "read_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Url"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "file_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10485760.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "value"
+        ],
+        "title": "ProjectImageBlock"
       },
       "ProjectReward": {
         "properties": {
@@ -1739,7 +1799,21 @@
           },
           "story_content": {
             "items": {
-              "$ref": "#/components/schemas/ProjectContentBlock"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ProjectTextBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/ProjectImageBlock"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "IMAGE": "#/components/schemas/ProjectImageBlock",
+                  "TEXT": "#/components/schemas/ProjectTextBlock"
+                }
+              }
             },
             "type": "array",
             "maxItems": 300,
@@ -1752,6 +1826,28 @@
           "title"
         ],
         "title": "ProjectSnapshot"
+      },
+      "ProjectTextBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "TEXT",
+            "title": "Type"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "value"
+        ],
+        "title": "ProjectTextBlock"
       },
       "RewardFact": {
         "properties": {

@@ -25,7 +25,10 @@ CREATE_EXAMPLE = {
                 "price": 129000,
             }
         ],
-        "story_content": [{"type": "TEXT", "value": "좁은 공간의 청소 부담을 줄이기 위해 준비했습니다."}],
+        "story_content": [
+            {"type": "TEXT", "value": "<p>좁은 공간의 청소 부담을 줄이기 위해 준비했습니다.</p>"},
+            {"type": "IMAGE", "value": "https://fundit-assets.s3.ap-northeast-2.amazonaws.com/projects/example/body.png"},
+        ],
     },
 }
 
