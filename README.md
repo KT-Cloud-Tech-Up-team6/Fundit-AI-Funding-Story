@@ -106,15 +106,15 @@ flowchart LR
 
 ## Content Insights
 
-Content Insights is separate from the optional Funding Story authoring flow. After a project
-snapshot is saved, Project Service requests the detail-page summary:
+Content Insights is separate from the optional Funding Story authoring flow. Its `PAGE_SUMMARY`
+output is intended for the top of the project detail page and can run without Funding Story:
 
-- `PAGE_SUMMARY`: the former two-section Storyline JSON shape (`sections` with `role`, `headline`, and `description`; schema v2).
-- `STORYLINE`: the former single-`content` summary JSON shape, exposed through a separate API for a future AI cue-sheet consumer. It is not part of project registration or the public detail page.
+- `PAGE_SUMMARY`: schema v2 `sections` with `WHAT` and `WHY`, each containing `role`, `headline`, and `description`.
+- `STORYLINE`: a separate API returning a single `content` string. Page Summary requests do not run it.
 
-Only `PAGE_SUMMARY` is required for the project readiness policy. Project Service owns the canonical
-public result and the FE reads it from Project Service; FE does not call these AI endpoints directly.
-The current internal endpoints use the same service base path:
+For these AI runs, `required_artifacts_ready` depends only on `PAGE_SUMMARY` success. The BE–FE
+public response contract is outside this repository's AI interface. The current internal endpoints
+use the same service base path:
 
 | Method | Path | Purpose |
 |---|---|---|

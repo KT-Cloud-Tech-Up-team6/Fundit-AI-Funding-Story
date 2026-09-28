@@ -1,24 +1,19 @@
-# Content Insights 통합 인터페이스 계약
+# 상세 페이지 AI 요약 — AI ↔ BE 인터페이스
 
-상태: AI 구현 기준. BE·FE 적용 상태는 각 저장소에서 확인
+상태: AI 구현 기준. BE·FE 구현 및 BE ↔ FE 공개 계약은 각 저장소에서 확인
 
-| 주체 | 책임 |
-|---|---|
-| Project Service | 등록 완료 판단, 불변 snapshot·revision 생성, AI 호출, 최신 성공 결과 저장·공개 |
-| Funding Story AI | Page Summary 생성·상태·재시도; Storyline은 별도 API로만 생성 |
-| FE | BE 공개 API의 Page Summary 표시; AI 직접 호출 없음 |
+`PAGE_SUMMARY`는 프로젝트 상세 페이지 상단에 배치할 AI 요약이다. `WHAT`·`WHY`는 AI 출력의 두 역할이며, Funding Story 작성 기능과 독립적으로 실행할 수 있다. 이 문서는 AI의 입력·출력·상태 계약만 다룬다.
 
-## 등록 후 Page Summary
+## Page Summary
 
 ```text
-프로젝트 정보 저장 → BE snapshot/revision 확정 → POST /api/v1/ai/page-summary-runs
-→ GET /api/v1/ai/page-summary-runs/{run_id} → PAGE_SUMMARY 성공
-→ BE 최신 결과 저장 → FE 공개 상세 표시
+POST /api/v1/ai/page-summary-runs
+→ GET /api/v1/ai/page-summary-runs/{run_id} → PAGE_SUMMARY 결과
 ```
 
 | 메서드 | AI 경로 | 용도 |
 |---|---|---|
-| `POST` | `/api/v1/ai/page-summary-runs` | 등록·수정 시 요약 생성 |
+| `POST` | `/api/v1/ai/page-summary-runs` | 요약 생성 요청 |
 | `GET` | `/api/v1/ai/page-summary-runs/{run_id}` | 상태·결과 조회 |
 | `POST` | `/api/v1/ai/page-summary-runs/{run_id}/retry` | 재시도 가능한 실패 재시도 |
 
@@ -44,7 +39,7 @@
 }
 ```
 
-AI가 직접 읽을 수 있는 URL과 요청 포함 읽기 URL 중 어떤 방식을 쓸지는 BE 연동 이슈에서 결정한다. 비공개 객체의 접근 방법과 서명 URL 만료 후 재시도 정책도 그 범위다. 별도 BE 이미지 읽기 API는 AI의 선행 조건이 아니다. 이미지 읽기 실패는 해당 Page Summary를 실패 처리하며 텍스트만으로 성공 처리하지 않는다. Page Summary 호출·저장·공개 연동은 아직 BE·FE에 구현되지 않았다.
+이미지 접근 방식은 BE 연동 시 확정한다. 별도 BE 이미지 읽기 API는 AI의 선행 조건이 아니다. 이미지 읽기 실패 시 Page Summary는 실패하며 텍스트만으로 성공 처리하지 않는다.
 전체 필드와 오류 응답: [OpenAPI](openapi.json).
 
 AI 성공 출력 `artifacts.PAGE_SUMMARY.output`:
@@ -65,30 +60,7 @@ AI 성공 출력 `artifacts.PAGE_SUMMARY.output`:
 }
 ```
 
-등록 준비 조건은 `required_artifacts_ready=true`와 `PAGE_SUMMARY.status=SUCCEEDED`다. `STORYLINE`은 등록 시 요청하지 않으며 준비 조건에 포함하지 않는다. 이전 revision 결과는 공개 기준으로 사용하지 않는다. 프로젝트 원본 저장은 AI 완료를 동기 대기하지 않는다.
-
-## BE → FE 공개 결과
-
-BE·FE 적용 시 BE는 AI 내부 `role`을 제외하고 최신 `PAGE_SUMMARY`의 두 항목을 전달한다. 아래는 목표 공개 형식이며 BE·FE 코드에는 아직 반영하지 않았다.
-
-```json
-{
-  "sourceRevision": 17,
-  "status": "SUCCEEDED",
-  "requiredArtifactsReady": true,
-  "artifacts": [{
-    "type": "PAGE_SUMMARY",
-    "status": "SUCCEEDED",
-    "required": true,
-    "sections": [
-      {"headline": "좁은 공간을 위한 무선 청소기", "description": "약 1.3kg 본체와 틈새 노즐로 구성된 얼리버드 리워드"},
-      {"headline": "좁은 공간의 청소 부담 완화", "description": "좁은 공간을 자주 청소하는 사용자를 위해 준비한 프로젝트"}
-    ]
-  }]
-}
-```
-
-FE는 성공한 최신 What·Why 두 항목만 표시한다. `PENDING`, `FAILED`, `STALE`은 공개 화면에서 생략한다. Live Summary와 채팅 입력 확인 요약은 별개다.
+AI 응답의 `required_artifacts_ready=true`는 `PAGE_SUMMARY.status=SUCCEEDED`일 때 충족된다. Page Summary 요청은 `STORYLINE`을 실행하지 않는다. 새 `source_revision` 요청 시 이전 AI run은 `STALE`로 관리한다.
 
 ## 분리된 Storyline
 
@@ -98,4 +70,4 @@ FE는 성공한 최신 What·Why 두 항목만 표시한다. `PENDING`, `FAILED`
 | `GET` | `/api/v1/ai/storyline-runs/{run_id}` | 상태·결과 조회 |
 | `POST` | `/api/v1/ai/storyline-runs/{run_id}/retry` | 재시도 가능한 실패 재시도 |
 
-Storyline 출력은 `output.content` 단일 문자열이다. Storyline은 텍스트 입력만 사용하며 이미지 전용 snapshot은 허용하지 않는다. 후속 AI 큐시트 연동 시점은 미확정이며 등록 과정의 자동 호출·BE 저장·FE 공개 상세 표시 계약에 포함하지 않는다.
+Storyline 출력은 `output.content` 단일 문자열이다. Storyline은 텍스트 입력만 사용하며 이미지 전용 snapshot은 허용하지 않는다. Page Summary 요청에서 자동 실행되지 않으며, 후속 소비자는 아직 확정되지 않았다.
