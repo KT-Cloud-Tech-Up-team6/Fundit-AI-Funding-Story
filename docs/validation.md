@@ -40,6 +40,17 @@ uv build
 | `ruff check src tests scripts` | 통과 |
 | `uv build` | sdist·wheel 생성 통과 |
 
+### Page Summary 서명 URL 갱신 (2026-09-28)
+
+| 검증 | 결과 |
+|---|---|
+| 만료 구분 | 사전 만료·저장소의 명시적 만료 응답은 `IMAGE_READ_URL_EXPIRED`; 일반 권한 오류는 구분 |
+| API·PostgreSQL | 만료 실패 → 같은 콘텐츠 버전/새 키/새 URL 접수 → 이전 run `STALE` → 새 run 성공 |
+| 거부·중복 | 콘텐츠 변경·일반 실패·실행 중·성공·이전 버전 거부, 동시 재접수 시 새 run 1개 |
+| 전체 자동 검사 | 200 passed, ruff·migration 일치 검사·sdist/wheel 빌드 통과; 의존성 deprecation warning 1건 |
+
+DB는 Testcontainers PostgreSQL 17, 이미지 HTTP 응답·모델 출력은 mock을 사용했다. 실제 BE·AWS S3 왕복은 별도 연동 검증 대상이다.
+
 ## 운영 모델 로컬 전체 생성 (2026-09-23)
 
 | 항목 | 결과 |

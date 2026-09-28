@@ -62,7 +62,7 @@ AI 응답의 `required_artifacts_ready=true`는 `PAGE_SUMMARY.status=SUCCEEDED`�
 Page Summary 성공 결과는 schema v2의 `sections` 배열(고정 순서의 `WHAT`, `WHY`)이며, 각 블록은 한 줄짜리 `headline`·`description`을 포함한다. 별도 Storyline 결과는 단일 `content`다.
 
 일시 오류로 `retryable=true`가 된 한 artifact만 재시도한다.
-이미지 포함 입력은 BE가 접근 가능한 URL 또는 요청에 포함된 읽기 URL을 제공한 뒤 사용한다. 비공개 객체의 읽기 방식과 서명 URL 만료 후 재시도 정책은 BE 연동 이슈에서 확정한다.
+이미지 포함 입력은 BE가 접근 가능한 URL 또는 요청에 포함된 읽기 URL을 제공한 뒤 사용한다. 서명 URL 만료는 아래 재접수 절차를 따른다.
 
 ```sh
 curl -i -X POST "$AI_BASE_URL/api/v1/ai/page-summary-runs/$RUN_ID/retry" \
@@ -70,7 +70,16 @@ curl -i -X POST "$AI_BASE_URL/api/v1/ai/page-summary-runs/$RUN_ID/retry" \
   -H "X-Project-Id: $PROJECT_ID"
 ```
 
-`retryable=false`, 이미 성공한 결과, 요청되지 않은 결과, `STALE` run은 409다. 이 경우 입력을 보완하고 더 큰 `source_revision`과 새 idempotency key로 요청한다.
+`retryable=false`, 이미 성공한 결과, 요청되지 않은 결과, `STALE` run의 `/retry`는 409다. 콘텐츠를 보완했다면 더 큰 `source_revision`과 새 idempotency key로 요청한다. URL 만료는 같은 콘텐츠 버전으로 재접수한다.
+
+### 서명 URL 만료
+
+1. `FAILED` 응답의 `error.code=IMAGE_READ_URL_EXPIRED` 확인 (`retryable=false`).
+2. 만료된 이미지의 읽기 URL 재발급. MIME·파일 크기·원본 주소·본문은 유지하고, 다른 읽기 URL도 아직 유효한지 확인.
+3. 같은 `source_revision`·`trigger`, 새 `idempotency_key`로 `POST /api/v1/ai/page-summary-runs` 요청.
+4. 반환된 새 `run_id`로 조회. 이전 run은 `STALE`이며 재시도하지 않음.
+
+전달된 만료 시각이 지났거나 저장소가 서명/임시 자격 증명의 만료를 명시적으로 반환하면 만료 오류로 분류한다. 일반 `403`·`404`에는 이 재접수를 적용하지 않는다. 상세 조건은 [인터페이스](content-insights-integration-interface.md#이미지-읽기-url-만료-후-재접수)를 따른다.
 
 ## 장애 복구
 
@@ -79,7 +88,7 @@ curl -i -X POST "$AI_BASE_URL/api/v1/ai/page-summary-runs/$RUN_ID/retry" \
 - PostgreSQL row lock과 lease token이 중복 실행을 막는다.
 - 공급자 429/5xx는 한 모델 호출 안에서 15초·30초 간격으로 최대 3회 시도한다. 모두 실패하면 artifact가 `FAILED`, `retryable=true`가 된다.
 - 출력 형식 오류는 최초 호출 뒤 최대 2회 재생성한다. 계속 실패하면 `retryable=false`이며 새 revision으로 요청한다.
-- 새 source revision을 요청하면 직전 AI run과 artifact는 `STALE`이 된다.
+- 새 source revision 또는 만료 URL 갱신으로 새 run을 접수하면 직전 AI run과 artifact는 `STALE`이 된다.
 
 수동 점검 시 snapshot 원문이나 서비스 token을 로그에 복사하지 않는다. 구조화 로그의 `content_insight_artifact_succeeded|failed`에서 artifact type, run/artifact ID, project ID, source revision, prompt version, 시도 횟수, duration을 확인한다.
 

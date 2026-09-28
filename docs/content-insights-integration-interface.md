@@ -62,6 +62,20 @@ AI 성공 출력 `artifacts.PAGE_SUMMARY.output`:
 
 AI 응답의 `required_artifacts_ready=true`는 `PAGE_SUMMARY.status=SUCCEEDED`일 때 충족된다. Page Summary 요청은 `STORYLINE`을 실행하지 않는다. 새 `source_revision` 요청 시 이전 AI run은 `STALE`로 관리한다.
 
+### 이미지 읽기 URL 만료 후 재접수
+
+| 항목 | 계약 |
+|---|---|
+| 만료 실패 | `PAGE_SUMMARY.status=FAILED`, `error.code=IMAGE_READ_URL_EXPIRED`, `error.retryable=false` |
+| 재접수 | `POST /api/v1/ai/page-summary-runs`에 같은 `source_revision`·`trigger`, 새 `idempotency_key` 전달 |
+| 입력 변경 | 만료로 실패한 이미지의 `read_url`을 재발급하고 `expires_at` 갱신. 전달하는 모든 읽기 URL은 접수 시 유효해야 함 |
+| 콘텐츠 유지 | 제목·카테고리·설명·리워드·본문 순서와 값·이미지 원본 주소·MIME·파일 크기 동일 |
+| 상태 전환 | 새 run `QUEUED`, 이전 run과 artifact `STALE`. 이후 새 `run_id`로 조회 |
+| 중복 방지 | 같은 키·같은 요청은 같은 run 반환. 같은 키로 URL을 변경하면 `409` |
+| 거부 조건 | 만료 외 실패, 실행 중·성공한 작업, 더 최신 콘텐츠 버전 존재, 같은 버전의 콘텐츠 변경은 `409` |
+
+`retryable=false`는 기존 URL로 `/retry`를 호출할 수 없다는 의미다. 만료 오류에 한해 위 재접수가 가능하다. 일반 권한 오류·이미지 삭제는 만료로 간주하지 않는다. 이 예외는 Page Summary에만 적용한다.
+
 ## 분리된 Storyline
 
 | 메서드 | AI 경로 | 용도 |
