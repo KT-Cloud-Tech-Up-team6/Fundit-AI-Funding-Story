@@ -1,5 +1,6 @@
 import time
 
+import httpx
 import pytest
 from test_application import FakeRecordRepository
 
@@ -219,6 +220,48 @@ def test_registration_cannot_start_a_storyline_model_call():
             request(trigger="STORY_CONFIRMED"), "project-1", ArtifactType.PAGE_SUMMARY
         )
     assert application.pending_artifacts() == []
+
+
+def test_image_only_page_summary_is_valid_but_storyline_requires_text():
+    repository = FakeRecordRepository()
+    application = ContentInsightsApplication(repository)
+    image_request = ContentInsightCreateRequest(
+        source_revision=1,
+        idempotency_key="image-only",
+        trigger="PROJECT_REGISTRATION_COMPLETED",
+        project_snapshot={
+            "title": "이미지 기반 프로젝트",
+            "story_content": [{"type": "IMAGE", "value": "https://files.example.com/body.png"}],
+        },
+    )
+
+    run, _ = application.create_run(image_request, "project-1", ArtifactType.PAGE_SUMMARY)
+    assert run["status"] == "QUEUED"
+    image_request.trigger = "STORY_CONFIRMED"
+    with pytest.raises(ApplicationInvalid, match="텍스트 기반"):
+        application.create_run(image_request, "project-1", ArtifactType.STORYLINE)
+
+
+def test_transient_backend_image_read_failure_is_retryable():
+    repository = FakeRecordRepository()
+    application = ContentInsightsApplication(repository)
+    run, _ = application.create_run(request(), "project-1", ArtifactType.PAGE_SUMMARY)
+    page_id = artifact_id(run, "PAGE_SUMMARY")
+
+    class Generator:
+        artifact_type = ArtifactType.PAGE_SUMMARY
+        prompt_version = "page-summary-v3"
+
+        def generate(self, aid, snapshot):
+            response = httpx.Response(503, request=httpx.Request("POST", "https://backend.example.com"))
+            raise httpx.HTTPStatusError("unavailable", request=response.request, response=response)
+
+    execute_artifact(application, page_id, {ArtifactType.PAGE_SUMMARY: Generator()})
+    failed = application.get_run(run["run_id"], "project-1", ArtifactType.PAGE_SUMMARY)
+    error = failed["artifacts"]["PAGE_SUMMARY"]["error"]
+    assert error["code"] == "503" and error["retryable"] is True
+    retry, dispatch = application.retry_artifact(run["run_id"], ArtifactType.PAGE_SUMMARY, "project-1")
+    assert retry["status"] == "QUEUED" and dispatch == (page_id, ArtifactType.PAGE_SUMMARY)
 
 
 def test_worker_uses_registered_generator_and_persists_output():

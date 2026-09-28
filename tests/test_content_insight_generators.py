@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from funding_story.content_insights import generators
@@ -38,14 +40,126 @@ def test_artifact_input_mappers_are_independent(snapshot):
     assert page.source_fields == ["title", "category", "description", "story_content", "rewards"]
 
 
-@pytest.mark.parametrize("block_type", ["IMAGE", "VIDEO_URL"])
-def test_snapshot_rejects_media_locations(block_type):
+def test_snapshot_accepts_image_reference_but_rejects_video_and_insecure_url():
+    source = ProjectSnapshot(
+        title="이미지 기반 프로젝트",
+        story_content=[{"type": "IMAGE", "value": "https://example.com/body.png"}],
+    )
+    assert source.story_content[0].type == "IMAGE"
+
+    with pytest.raises(ValueError):
+        ProjectSnapshot(
+            title="이미지 기반 프로젝트",
+            story_content=[{"type": "IMAGE", "value": "http://example.com/body.png"}],
+        )
+    with pytest.raises(ValueError):
+        ProjectSnapshot(
+            title="이미지 기반 프로젝트",
+            story_content=[{"type": "IMAGE", "value": "https://example.com/body.png?signature=short-lived"}],
+        )
+    with pytest.raises(ValueError):
+        ProjectSnapshot(
+            title="이미지 기반 프로젝트",
+            story_content=[
+                {"type": "IMAGE", "value": "https://example.com/body.png", "read_url": "https://example.com/signed"}
+            ],
+        )
+    with pytest.raises(ValueError):
+        ProjectSnapshot(
+            title="이미지 기반 프로젝트",
+            story_content=[{"type": "IMAGE", "value": "https://example.com/body.gif"}],
+        )
+    with pytest.raises(ValueError):
+        ProjectSnapshot(
+            title="이미지 기반 프로젝트",
+            story_content=[{"type": "TEXT", "value": '<p>설명<img src="https://example.com/a.png"></p>'}],
+        )
     with pytest.raises(ValueError):
         ProjectSnapshot(
             title="LUMI S1",
             description="설명",
-            story_content=[{"type": block_type, "value": "https://example.com/private"}],
+            story_content=[{"type": "VIDEO_URL", "value": "https://example.com/private"}],
         )
+
+
+def test_page_summary_uses_text_and_images_in_original_block_order(monkeypatch):
+    snapshot = ProjectSnapshot(
+        title="수제 문구 프로젝트",
+        story_content=[
+            {"type": "TEXT", "value": "<p>손으로 만든&nbsp;표지</p><script>거짓 인증</script>"},
+            {"type": "IMAGE", "value": "https://files.example.com/one.png"},
+            {"type": "TEXT", "value": "<div>안쪽은 점선 노트</div>"},
+            {
+                "type": "IMAGE",
+                "value": "https://files.example.com/two.webp",
+                "read_url": "https://files.example.com/two.webp?signature=example",
+                "content_type": "image/webp",
+                "file_size": 42,
+                "expires_at": "2099-01-01T00:00:00Z",
+            },
+        ],
+    )
+    captured = {}
+
+    def fake_public_read(url):
+        captured["public_url"] = url
+        return (b"first-image", "image/png")
+
+    def fake_source_read(reference):
+        captured["signed_url"] = str(reference.read_url)
+        return (b"second-image", "image/webp")
+
+    def fake_generate_checked(run_id, prompt, model, references=()):
+        captured["references"] = references
+        captured["payload"] = json.loads(prompt.split("프로젝트 사실(JSON):\n", 1)[1])
+        return model(
+            sections=[
+                {"role": "WHAT", "headline": "수제 문구 구성", "description": "손으로 만든 표지와 점선 노트"},
+                {"role": "WHY", "headline": "확인된 제작 맥락", "description": "입력에 나타난 문구 제작 정보"},
+            ]
+        )
+
+    monkeypatch.setattr(generators, "read_public_image", fake_public_read)
+    monkeypatch.setattr(generators, "read_source_image", fake_source_read)
+    monkeypatch.setattr(generators, "generate_checked", fake_generate_checked)
+
+    result = PageSummaryGenerator().generate("artifact-1", snapshot)
+
+    assert captured["public_url"] == "https://files.example.com/one.png"
+    assert captured["signed_url"] == "https://files.example.com/two.webp?signature=example"
+    assert captured["payload"]["story_content"] == [
+        {"type": "TEXT", "text": "손으로 만든 표지"},
+        {"type": "IMAGE", "image_index": 1},
+        {"type": "TEXT", "text": "안쪽은 점선 노트"},
+        {"type": "IMAGE", "image_index": 2},
+    ]
+    assert captured["references"] == [
+        (b"first-image", "image/png"),
+        (b"second-image", "image/webp"),
+    ]
+    assert "거짓 인증" not in json.dumps(captured["payload"], ensure_ascii=False)
+    assert result.source_fields == ["title", "story_content"]
+
+
+def test_page_summary_does_not_generate_from_missing_image(monkeypatch):
+    snapshot = ProjectSnapshot(
+        title="이미지 기반 프로젝트",
+        story_content=[{"type": "IMAGE", "value": "https://files.example.com/body.png"}],
+    )
+
+    monkeypatch.setattr(
+        generators,
+        "read_public_image",
+        lambda _: (_ for _ in ()).throw(OSError("missing")),
+    )
+    monkeypatch.setattr(
+        generators,
+        "generate_checked",
+        lambda *args, **kwargs: pytest.fail("이미지를 누락한 채 생성해서는 안 됩니다."),
+    )
+
+    with pytest.raises(OSError, match="missing"):
+        PageSummaryGenerator().generate("artifact-1", snapshot)
 
 
 @pytest.mark.parametrize(
@@ -54,7 +168,7 @@ def test_snapshot_rejects_media_locations(block_type):
         (
             PageSummaryGenerator(),
             generators.PageSummaryDraft,
-            "page-summary-v2",
+            "page-summary-v3",
             {
                 "sections": [
                     {
@@ -85,8 +199,8 @@ def test_generators_use_separate_prompts_and_treat_project_instructions_as_data(
 ):
     captured = {}
 
-    def fake_generate_checked(run_id, prompt, model):
-        captured.update(run_id=run_id, prompt=prompt, model=model)
+    def fake_generate_checked(run_id, prompt, model, references=()):
+        captured.update(run_id=run_id, prompt=prompt, model=model, references=references)
         return model(**generated)
 
     monkeypatch.setattr(generators, "generate_checked", fake_generate_checked)
@@ -185,7 +299,7 @@ def test_page_summary_keeps_conditional_numbers_certification_and_policy_as_sour
     )
     captured = {}
 
-    def fake_generate_checked(run_id, prompt, model):
+    def fake_generate_checked(run_id, prompt, model, references=()):
         captured["prompt"] = prompt
         return model(
             sections=[
