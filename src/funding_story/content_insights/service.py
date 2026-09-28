@@ -3,6 +3,8 @@ import json
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+import httpx
+
 from ..application import ApplicationConflict, ApplicationInvalid
 from ..domain.repositories import Record, RecordRepository
 from ..job_lease import leased_record
@@ -80,6 +82,13 @@ class ContentInsightsApplication:
             policy = resolve_policy(body.trigger, artifact_type)
         except ValueError as exc:
             raise ApplicationInvalid(str(exc)) from exc
+        if artifact_type == ArtifactType.STORYLINE:
+            snapshot = body.project_snapshot
+            has_text = bool(snapshot.description.strip()) or any(
+                block.type == "TEXT" and block.value.strip() for block in snapshot.story_content
+            ) or any(reward.description.strip() for reward in snapshot.rewards)
+            if not has_text:
+                raise ApplicationInvalid("Storyline에는 텍스트 기반 프로젝트 정보가 필요합니다.")
 
         fingerprint = _fingerprint(body)
         source_hash = _source_hash(body)
@@ -285,8 +294,12 @@ class ContentInsightsApplication:
         model: str | None = None,
     ) -> None:
         artifact = self._records.get(artifact_id, kind=ARTIFACT_KIND)
-        code = getattr(exc, "code", None)
-        retryable = code in (429, 500, 502, 503, 504) or isinstance(exc, (TimeoutError, ConnectionError))
+        code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+        if isinstance(exc, httpx.HTTPStatusError):
+            code = exc.response.status_code
+        retryable = code in (429, 500, 502, 503, 504) or isinstance(
+            exc, (TimeoutError, ConnectionError, httpx.TransportError)
+        )
         artifact["data"].update(
             status=ArtifactStatus.FAILED.value,
             output=None,

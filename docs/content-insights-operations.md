@@ -6,22 +6,21 @@
 
 ## 로컬 실행
 
-API와 Funding Story 작성, 필수 페이지 요약, 별도 Storyline polling worker를 구분해 실행한다.
+API와 Funding Story 작성, 필수 페이지 요약 worker를 구분해 실행한다. Storyline worker는 소비자가 정해진 뒤 별도로 실행한다.
 
 ```sh
 uv run uvicorn funding_story.api:app --host 127.0.0.1 --port 58001
 uv run python -m funding_story.worker --lane funding-story
 uv run python -m funding_story.worker --lane page-summary
-uv run python -m funding_story.worker --lane storyline
 ```
 
-로컬에서 프로세스 수를 줄여야 할 때만 세 lane을 한 worker가 함께 처리한다.
+로컬에서 프로세스 수를 줄여야 할 때는 모든 lane을 한 worker가 함께 처리할 수 있다.
 
 ```sh
 uv run python -m funding_story.worker --lane all
 ```
 
-운영에서는 `page-summary`, `storyline`, `funding-story` lane을 별도 Deployment로 둔다. 한 worker 장애가 다른 작업을 고갈시키지 않게 한다.
+운영에서는 `page-summary`와 `funding-story` lane을 별도 Deployment로 둔다. Storyline 소비자가 확정되면 그 lane도 별도 Deployment로 둔다.
 
 권장 시작값은 dev에서 queue별 최소 1 replica다. staging에서 실제 처리시간·메모리·실패율을 측정한 뒤 production replica·concurrency·CPU·메모리를 확정한다. KEDA/HPA/Deployment 같은 배포 정책값은 `Fundit-Infra`가 아니라 ArgoCD가 읽는 `Fundit-GitOps`에서 관리한다. `Fundit-Infra`는 EKS·네트워크·DB와 컨트롤러 설치 상태를 확인하는 근거로 사용한다.
 
@@ -63,6 +62,7 @@ curl -s "$AI_BASE_URL/api/v1/ai/page-summary-runs/$RUN_ID" \
 Page Summary 성공 결과는 기존 Storyline과 같은 schema v2의 `sections` 배열(고정 순서의 `WHAT`, `WHY`)이며, 각 블록은 한 줄짜리 `headline`·`description`을 포함한다. 별도 Storyline 결과는 단일 `content`다.
 
 일시 오류로 `retryable=true`가 된 한 artifact만 재시도한다.
+이미지 포함 입력은 BE가 접근 가능한 URL 또는 요청에 포함된 읽기 URL을 제공한 뒤 사용한다. 비공개 객체의 읽기 방식과 서명 URL 만료 후 재시도 정책은 BE 연동 이슈에서 확정한다.
 
 ```sh
 curl -i -X POST "$AI_BASE_URL/api/v1/ai/page-summary-runs/$RUN_ID/retry" \
