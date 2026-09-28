@@ -1,6 +1,7 @@
 import time
 from datetime import UTC, datetime
 from io import BytesIO
+from xml.etree import ElementTree
 
 import httpx
 from PIL import Image
@@ -18,6 +19,35 @@ from .models import (
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
+class ImageReadUrlExpired(ValueError):
+    code = "IMAGE_READ_URL_EXPIRED"
+
+    def __init__(self):
+        super().__init__("입력 이미지 읽기 URL이 만료되었습니다.")
+        self.slot_id: str | None = None
+
+
+def _expired_signed_response(response: httpx.Response, expires_at: datetime) -> bool:
+    if expires_at <= datetime.now(UTC):
+        return True
+    # S3 can reject temporary credentials before the declared URL expiry. Only
+    # explicit expiry responses qualify; ordinary access-denied errors do not.
+    body = bytearray()
+    for chunk in response.iter_bytes():
+        if len(body) + len(chunk) > 16 * 1024:
+            return False
+        body.extend(chunk)
+    try:
+        root = ElementTree.fromstring(body)
+    except ElementTree.ParseError:
+        return False
+    code = root.findtext("Code")
+    message = root.findtext("Message")
+    return code in ("ExpiredToken", "RequestExpired") or (
+        code == "AccessDenied" and message == "Request has expired"
+    )
+
+
 def _read_image(
     url: str,
     *,
@@ -26,13 +56,19 @@ def _read_image(
     expires_at: datetime | None = None,
 ) -> tuple[bytes, str]:
     if expires_at is not None and expires_at <= datetime.now(UTC):
-        raise ValueError("입력 이미지 읽기 URL이 만료되었습니다.")
+        raise ImageReadUrlExpired()
     with httpx.stream(
         "GET",
         url,
         timeout=settings().internal_http_timeout_seconds,
         follow_redirects=False,
     ) as response:
+        if (
+            expires_at is not None
+            and response.status_code in (400, 403)
+            and _expired_signed_response(response, expires_at)
+        ):
+            raise ImageReadUrlExpired()
         response.raise_for_status()
         content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
         if content_type not in ("image/png", "image/jpeg", "image/webp"):
@@ -62,12 +98,16 @@ def _read_image(
 
 
 def read_source_image(reference: SourceImageRef) -> tuple[bytes, str]:
-    return _read_image(
-        str(reference.read_url),
-        expected_type=reference.content_type,
-        expected_size=reference.file_size,
-        expires_at=reference.expires_at,
-    )
+    try:
+        return _read_image(
+            str(reference.read_url),
+            expected_type=reference.content_type,
+            expected_size=reference.file_size,
+            expires_at=reference.expires_at,
+        )
+    except ImageReadUrlExpired as exc:
+        exc.slot_id = reference.slot_id
+        raise
 
 
 def read_public_image(url: str) -> tuple[bytes, str]:
