@@ -1,0 +1,14 @@
+{
+  "universe_domain": "googleapis.com",
+  "type": "external_account",
+  "audience": "//iam.googleapis.com/projects/254172583499/locations/global/workloadIdentityPools/funding-story-dev/providers/eks-dev",
+  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+  "token_url": "https://sts.googleapis.com/v1/token",
+  "credential_source": {
+    "file": "/var/run/secrets/google-identity/token",
+    "format": {
+      "type": "text"
+    }
+  },
+  "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/funding-story-ai-dev@project-c0d4f6ae-c737-445d-93b.iam.gserviceaccount.com:generateAccessToken"
+}

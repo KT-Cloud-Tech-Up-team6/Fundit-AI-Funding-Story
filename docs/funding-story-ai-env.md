@@ -1,15 +1,15 @@
 # Funding Story AI — 인프라팀 전달용 환경변수
 
-대상: EKS의 AI API와 worker 3종. dev/prod에 동일한 변수 목록을 주입합니다. `<...>`는 환경별 실제 값으로 교체합니다. 비밀번호·토큰 원문은 Notion이나 Git에 적지 않습니다.
+대상: dev EKS의 AI API와 worker 3종. 아래 인증값은 `dev / funding-story-ai` 전용입니다. prod는 인증 주체와 신뢰 설정을 별도로 확정합니다. 비밀번호·토큰 원문은 Notion이나 Git에 적지 않습니다.
 
 ## 실행
 
 | 환경변수 | 값 |
 | --- | --- |
-| `APP_ENV` | `dev` 또는 `prod` |
+| `APP_ENV` | `dev` |
 | `MODEL_PROFILE` | `runtime` |
 
-## PostgreSQL (백엔드와 공유하는 DB)
+## PostgreSQL DB
 
 | 환경변수 | 값 |
 | --- | --- |
@@ -30,21 +30,25 @@
 
 `AI_SERVICE_TOKEN`은 BE의 `FUNDING_STORY_AI_TOKEN`과 같은 값입니다.
 
-## Google Vertex AI (ADC)
+## Google Vertex AI (WIF · ADC로 설정 로드)
+
+ADC는 인증 설정을 자동으로 찾는 방법이고, WIF는 EKS 토큰으로 Google 단기 토큰을 받는 방식입니다. Google SDK는 아래 JSON을 ADC로 찾아 WIF 인증에 사용합니다. `external_account` JSON에는 비밀키가 없습니다.
 
 | 환경변수 | 값 |
 | --- | --- |
-| `GOOGLE_CLOUD_PROJECT` | `<GCP_PROJECT_ID>` |
+| `GOOGLE_CLOUD_PROJECT` | `project-c0d4f6ae-c737-445d-93b` |
 | `GOOGLE_CLOUD_LOCATION` | `global` (기본값) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Pod 내 Google `external_account` JSON 경로 (예: `/var/run/secrets/google-wif/credentials.json`) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | `/var/run/secrets/google-wif/credentials.json` |
+
+Google 설정 파일은 [google-wif-dev.json](../deploy/auth/google-wif-dev.json)을 사용합니다. Google 토큰의 audience와 마운트 경로는 [인증 계약](aws-eks-provider-auth.md#google-dev-설정값)을 따릅니다.
 
 ## OpenAI 이미지 생성 (WIF)
 
 | 환경변수 | 값 |
 | --- | --- |
-| `OPENAI_IDENTITY_PROVIDER_ID` | `<OPENAI_WIF_PROVIDER_ID>` |
-| `OPENAI_SERVICE_ACCOUNT_ID` | `<OPENAI_SERVICE_ACCOUNT_ID>` |
-| `OPENAI_WIF_AUDIENCE` | Provider·토큰에 설정한 audience (예: `https://api.openai.com/v1`) |
-| `OPENAI_WIF_TOKEN_FILE` | Pod 내 OpenAI projected token 경로 (예: `/var/run/secrets/openai-wif/token`) |
+| `OPENAI_IDENTITY_PROVIDER_ID` | `idp_65c3c65ddba506b5f620bfc7` |
+| `OPENAI_SERVICE_ACCOUNT_ID` | `user-1aa935e64b36d873abba6933` |
+| `OPENAI_WIF_AUDIENCE` | `https://api.openai.com/v1` |
+| `OPENAI_WIF_TOKEN_FILE` | `/var/run/secrets/openai-wif/token` |
 
-ADC·WIF 항목의 ID와 경로는 인증 정보 자체가 아닙니다. 해당 파일 마운트와 Google·OpenAI 측 신뢰 설정은 별도로 준비되어야 합니다. 운영에는 `OPENAI_API_KEY`나 Google 서비스 계정 private key를 주입하지 않습니다.
+WIF 항목의 ID와 경로는 비밀값이 아닙니다. dev의 Google·OpenAI 신뢰 및 호출 권한 설정은 완료했습니다. 인프라팀은 Google 설정 JSON과 각 플랫폼 전용 EKS 토큰을 별도 마운트합니다. 실제 EKS 토큰 교환·모델 호출은 아직 미검증입니다. 배포에는 `OPENAI_API_KEY`나 Google 서비스 계정 private key를 주입하지 않습니다.

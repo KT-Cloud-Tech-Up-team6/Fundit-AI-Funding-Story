@@ -15,17 +15,25 @@ spec:
     spec:
       serviceAccountName: funding-story-ai
       automountServiceAccountToken: false
+      # The image runs as non-root; allow its supplemental group to read mounted files.
+      securityContext:
+        fsGroup: 2000
       containers:
         - name: funding-story-ai
           env:
+            - name: GOOGLE_CLOUD_PROJECT
+              value: project-c0d4f6ae-c737-445d-93b
+            - name: GOOGLE_CLOUD_LOCATION
+              value: global
+            # ADC discovers this external_account WIF configuration; it has no private key.
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /var/run/secrets/google-wif/credentials.json
             - name: MODEL_PROFILE
               value: runtime
             - name: OPENAI_IDENTITY_PROVIDER_ID
-              value: <OPENAI_PLATFORM_PROVIDER_ID>
+              value: idp_65c3c65ddba506b5f620bfc7
             - name: OPENAI_SERVICE_ACCOUNT_ID
-              value: <OPENAI_PLATFORM_SERVICE_ACCOUNT_ID>
+              value: user-1aa935e64b36d873abba6933
             - name: OPENAI_WIF_AUDIENCE
               value: https://api.openai.com/v1
             - name: OPENAI_WIF_TOKEN_FILE
@@ -45,7 +53,7 @@ spec:
       volumes:
         - name: openai-wif-token
           projected:
-            defaultMode: 0400
+            defaultMode: 0440
             sources:
               - serviceAccountToken:
                   path: token
@@ -53,11 +61,11 @@ spec:
                   expirationSeconds: 3600
         - name: google-wif-token
           projected:
-            defaultMode: 0400
+            defaultMode: 0440
             sources:
               - serviceAccountToken:
                   path: token
-                  audience: <GCP_EKS_OIDC_AUDIENCE>
+                  audience: https://iam.googleapis.com/projects/254172583499/locations/global/workloadIdentityPools/funding-story-dev/providers/eks-dev
                   expirationSeconds: 3600
         - name: google-wif-config
           secret:
