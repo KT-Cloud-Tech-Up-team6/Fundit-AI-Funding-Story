@@ -106,21 +106,24 @@ flowchart LR
 
 ## Content Insights
 
-Content Insights is separate from the optional Funding Story authoring flow. After a project
-snapshot is saved, Project Service requests two independent artifacts from this service:
+Content Insights is separate from the optional Funding Story authoring flow. Its `PAGE_SUMMARY`
+output is intended for the top of the project detail page and can run without Funding Story:
 
-- `PAGE_SUMMARY`: a short summary for the project detail page.
-- `STORYLINE`: two ordered headline/detail blocks that summarize what the project is and why it matters (schema v2; internal semantic roles stay hidden).
+- `PAGE_SUMMARY`: schema v2 `sections` with `WHAT` and `WHY`, each containing `role`, `headline`, and `description`.
+- `STORYLINE`: a separate API returning a single `content` string. Page Summary requests do not run it.
 
-Both artifacts are required for the project readiness policy. Project Service owns the canonical
-public result and the FE reads it from Project Service; FE does not call these AI endpoints directly.
-The current internal endpoints use the same service base path:
+For these AI runs, `required_artifacts_ready` depends only on `PAGE_SUMMARY` success. The BE–FE
+public response contract is outside this repository's AI interface. The current internal endpoints
+use the same service base path:
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/ai/content-insight-runs` | Create a snapshot-based parent run |
-| `GET` | `/api/v1/ai/content-insight-runs/{run_id}` | Read artifact status and results |
-| `POST` | `/api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry` | Retry one retryable artifact |
+| `POST` | `/api/v1/ai/page-summary-runs` | Create a page summary run |
+| `GET` | `/api/v1/ai/page-summary-runs/{run_id}` | Read page summary status and result |
+| `POST` | `/api/v1/ai/page-summary-runs/{run_id}/retry` | Retry a failed page summary |
+| `POST` | `/api/v1/ai/storyline-runs` | Explicitly create a separate storyline run |
+| `GET` | `/api/v1/ai/storyline-runs/{run_id}` | Read storyline status and result |
+| `POST` | `/api/v1/ai/storyline-runs/{run_id}/retry` | Retry a failed storyline |
 
 Content Insights keeps its own PostgreSQL-backed artifact state, queues, revision checks, and
 retry lifecycle. It does not use the Funding Story TTL session state.

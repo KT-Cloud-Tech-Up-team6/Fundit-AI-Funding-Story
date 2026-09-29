@@ -57,10 +57,18 @@ class PostgresRecordRepository:
             )
 
     def latest(self, project, kind):
+        order = "updated_at DESC, id DESC"
+        if kind in ("page_summary_run", "storyline_run"):
+            # Staling a replaced run updates its timestamp in the same transaction
+            # as its replacement. It must not become the latest run again.
+            order = (
+                "(data->>'source_revision')::numeric DESC, "
+                "(data->>'status' = 'STALE') ASC, created_at DESC, id DESC"
+            )
         with self._using_connection() as conn:
             return conn.execute(
                 "SELECT * FROM ai_records WHERE project_id=%s AND kind=%s "
-                "ORDER BY updated_at DESC, id DESC LIMIT 1",
+                f"ORDER BY {order} LIMIT 1",
                 (project, kind),
             ).fetchone()
 

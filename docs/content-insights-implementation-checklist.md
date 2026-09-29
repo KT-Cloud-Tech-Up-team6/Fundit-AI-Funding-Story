@@ -2,7 +2,7 @@
 
 최초 작성: 2026-09-17
 최종 검증: 2026-09-18
-상태: AI API 0.3.0과 제품 정책 구현 완료. Backend·FE는 통합 인터페이스만 확정했으며 실제 구현·배포는 외부 저장소 작업.
+상태: 2026-09-18 당시 구현 기록. 현재 단일 API·Storyline 등록 필수 정책은 폐기되었다. 현행 계약은 [통합 인터페이스](content-insights-integration-interface.md)와 [OpenAPI](openapi.json)를 따른다.
 
 설계 문서: [필수 프로젝트 콘텐츠 생성 API 설계](content-insights-api-design.md)
 통합 계약: [Content Insights 통합 인터페이스](content-insights-integration-interface.md)
@@ -169,7 +169,7 @@ Backend·FE 항목의 `[x]`는 인터페이스 결정과 문서화 완료를 뜻
 - [x] 기존 필드를 `authoring_preview` 의미로 문서화한다.
 - [x] canonical 결과가 Content Insights뿐임을 API·통합 계약에 명시한다.
 - [ ] Project Service가 새 결과를 저장하는 동안 기존 필드를 호환 유지한다. `외부 Backend 저장소 적용`
-- [ ] 모든 소비자 전환 후 기존 copy prompt에서 필수 summary/storyline 생성을 제거한다. `보류: 호환 기간 종료`
+- [x] Funding Story `CopyResult`와 copy prompt에서 중복 summary/storyline 생성을 제거한다. 별도 Content Insights API는 유지한다.
 - [x] 기존 export JSON fixture와 frontend contract test를 유지·갱신한다.
 - [x] 기존 Funding Story session → run → export → commit 회귀 테스트를 유지한다.
 

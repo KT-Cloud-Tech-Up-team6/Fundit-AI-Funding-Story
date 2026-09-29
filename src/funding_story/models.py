@@ -350,5 +350,3 @@ class ProjectInput(StrictModel):
 class CopyResult(StrictModel):
     texts: dict[str, str]
     image_prompts: dict[str, str]
-    summary: str
-    storyline: str

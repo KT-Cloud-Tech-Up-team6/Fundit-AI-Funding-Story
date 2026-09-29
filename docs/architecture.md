@@ -209,22 +209,23 @@ BE/FE는 새 태그와 코드에서 지정한 정적 `style` 속성의 보존·�
 ## 7. Content Insights — 별도 기능
 
 Content Insights는 Funding Story 세션·전체 생성과 분리된 프로젝트 콘텐츠 요약 기능이다.
-Project Service가 저장한 정규 snapshot과 source revision을 기준으로 `PAGE_SUMMARY`와
-`STORYLINE` artifact를 독립 생성한다. `PAGE_SUMMARY`는 상세 페이지용 짧은 요약이고,
-`STORYLINE`은 schema v2의 두 개의 What·Why 제목·설명 블록이다. 내부 의미 구분명은 FE에
-직접 노출하지 않는다.
+입력 snapshot과 source revision을 기준으로 상세 페이지 상단용 `PAGE_SUMMARY`를 생성한다.
+결과는 `WHAT`·`WHY`의 `sections` 두 블록 구조다. `STORYLINE`은 단일 `content` 구조의
+별도 API이며 Page Summary 요청에서 자동 생성되지 않는다.
 
 | Method | Path | 역할 |
 |---|---|---|
-| `POST` | `/api/v1/ai/content-insight-runs` | snapshot 기반 parent run 생성 |
-| `GET` | `/api/v1/ai/content-insight-runs/{run_id}` | parent·artifact 상태 및 결과 조회 |
-| `POST` | `/api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry` | retryable artifact 단건 재시도 |
+| `POST` | `/api/v1/ai/page-summary-runs` | 페이지 요약 생성 |
+| `GET` | `/api/v1/ai/page-summary-runs/{run_id}` | 상태 및 결과 조회 |
+| `POST` | `/api/v1/ai/page-summary-runs/{run_id}/retry` | 재시도 가능한 실패 재시도 |
+| `POST` | `/api/v1/ai/storyline-runs` | 별도 Storyline 생성 |
+| `GET` | `/api/v1/ai/storyline-runs/{run_id}` | Storyline 조회 |
+| `POST` | `/api/v1/ai/storyline-runs/{run_id}/retry` | Storyline 재시도 |
 
-각 artifact는 독립 상태·queue·prompt/schema version·오류·시도 횟수를 가지며, 더 최신
-source revision이 생기면 이전 결과는 공개 기준에서 제외한다. 두 required artifact가 모두
-성공해야 Project Service의 `required_artifacts_ready`가 충족된다. 공개 FE 응답은 AI 내부
-상태를 그대로 노출하지 않고 Project Service가 저장한 canonical 결과를 사용한다.
+각 결과는 독립 상태·queue·prompt/schema version·오류·시도 횟수를 가진다. 새
+source revision 요청 시 이전 AI run은 `STALE`이 된다. AI 응답의
+`required_artifacts_ready`는 Page Summary 성공 시 충족된다.
 
-상세 입력·응답과 운영 절차는 [Content Insights API 설계](content-insights-api-design.md),
-[통합 인터페이스](content-insights-integration-interface.md), [운영 안내](content-insights-operations.md)를
-따른다.
+현행 입력·응답과 운영 절차는 [통합 인터페이스](content-insights-integration-interface.md),
+[OpenAPI](openapi.json), [운영 안내](content-insights-operations.md)를 따른다.
+[초기 API 설계](content-insights-api-design.md)는 이전 정책의 기록이다.

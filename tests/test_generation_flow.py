@@ -91,8 +91,6 @@ def test_chat_confirm_real_parallel_png_html_and_completion(monkeypatch, tmp_pat
         image_prompts={
             node["id"]: node["id"] for block in blocks for node in block["nodes"] if node["kind"] == "image"
         },
-        summary="요약",
-        storyline="이야기",
     )
     monkeypatch.setattr(tasks, "plan", lambda *_: (scene, {}))
     monkeypatch.setattr(tasks, "generate_checked", lambda *args, **kwargs: draft)

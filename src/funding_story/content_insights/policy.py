@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from .models import ArtifactType, ContentInsightTrigger
 
-POLICY_VERSION = "content-insights-policy-v2"
+POLICY_VERSION = "content-insights-policy-v3"
 
 
 @dataclass(frozen=True)
@@ -11,33 +11,20 @@ class ArtifactPolicy:
     required: bool
 
 
-def resolve_policy(
-    trigger: ContentInsightTrigger, requested_artifacts: list[ArtifactType]
-) -> dict[ArtifactType, ArtifactPolicy]:
-    requested = set(requested_artifacts)
-    if not requested:
-        requested = (
-            {ArtifactType.STORYLINE}
-            if trigger == ContentInsightTrigger.STORY_CONFIRMED
-            else {ArtifactType.PAGE_SUMMARY, ArtifactType.STORYLINE}
-        )
-
-    if trigger in (
+def resolve_policy(trigger: ContentInsightTrigger, artifact_type: ArtifactType) -> dict[ArtifactType, ArtifactPolicy]:
+    if artifact_type == ArtifactType.PAGE_SUMMARY and trigger in (
         ContentInsightTrigger.PROJECT_REGISTRATION_COMPLETED,
         ContentInsightTrigger.PROJECT_CONTENT_UPDATED,
     ):
         return {
             ArtifactType.PAGE_SUMMARY: ArtifactPolicy(requested=True, required=True),
-            ArtifactType.STORYLINE: ArtifactPolicy(requested=True, required=True),
+            ArtifactType.STORYLINE: ArtifactPolicy(requested=False, required=False),
         }
 
-    if trigger == ContentInsightTrigger.STORY_CONFIRMED:
-        unsupported = requested - {ArtifactType.STORYLINE}
-        if unsupported:
-            raise ValueError("STORY_CONFIRMED에서는 STORYLINE만 요청할 수 있습니다.")
+    if artifact_type == ArtifactType.STORYLINE and trigger == ContentInsightTrigger.STORY_CONFIRMED:
         return {
             ArtifactType.PAGE_SUMMARY: ArtifactPolicy(requested=False, required=False),
             ArtifactType.STORYLINE: ArtifactPolicy(requested=True, required=True),
         }
 
-    raise ValueError("지원하지 않는 Content Insights trigger입니다.")
+    raise ValueError("요청한 결과와 trigger 조합이 맞지 않습니다.")

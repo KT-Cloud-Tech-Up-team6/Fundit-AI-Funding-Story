@@ -5,13 +5,13 @@
     "version": "1.0.0"
   },
   "paths": {
-    "/api/v1/ai/content-insight-runs": {
+    "/api/v1/ai/page-summary-runs": {
       "post": {
         "tags": [
           "content-insights"
         ],
-        "summary": "Create Content Insight Run",
-        "operationId": "create_content_insight_run_api_v1_ai_content_insight_runs_post",
+        "summary": "Create Page Summary Run",
+        "operationId": "create_page_summary_run_api_v1_ai_page_summary_runs_post",
         "parameters": [
           {
             "name": "authorization",
@@ -60,10 +60,6 @@
                     "source_revision": 42,
                     "idempotency_key": "11111111-1111-1111-1111-111111111111:content-insights:42",
                     "trigger": "PROJECT_REGISTRATION_COMPLETED",
-                    "requested_artifacts": [
-                      "PAGE_SUMMARY",
-                      "STORYLINE"
-                    ],
                     "project_snapshot": {
                       "title": "LUMI S1",
                       "category": "테크·가전",
@@ -78,7 +74,11 @@
                       "story_content": [
                         {
                           "type": "TEXT",
-                          "value": "좁은 공간의 청소 부담을 줄이기 위해 준비했습니다."
+                          "value": "<p>좁은 공간의 청소 부담을 줄이기 위해 준비했습니다.</p>"
+                        },
+                        {
+                          "type": "IMAGE",
+                          "value": "https://fundit-assets.s3.ap-northeast-2.amazonaws.com/projects/example/body.png"
                         }
                       ]
                     }
@@ -110,9 +110,8 @@
                       "attempts": 0
                     },
                     "STORYLINE": {
-                      "artifact_id": "44444444-4444-4444-4444-444444444444",
-                      "status": "QUEUED",
-                      "required": true,
+                      "status": "NOT_REQUESTED",
+                      "required": false,
                       "attempts": 0
                     }
                   }
@@ -133,13 +132,13 @@
         }
       }
     },
-    "/api/v1/ai/content-insight-runs/{run_id}": {
+    "/api/v1/ai/page-summary-runs/{run_id}": {
       "get": {
         "tags": [
           "content-insights"
         ],
-        "summary": "Get Content Insight Run",
-        "operationId": "get_content_insight_run_api_v1_ai_content_insight_runs__run_id__get",
+        "summary": "Get Page Summary Run",
+        "operationId": "get_page_summary_run_api_v1_ai_page_summary_runs__run_id__get",
         "parameters": [
           {
             "name": "run_id",
@@ -207,13 +206,13 @@
         }
       }
     },
-    "/api/v1/ai/content-insight-runs/{run_id}/artifacts/{artifact_type}/retry": {
+    "/api/v1/ai/page-summary-runs/{run_id}/retry": {
       "post": {
         "tags": [
           "content-insights"
         ],
-        "summary": "Retry Content Insight Artifact",
-        "operationId": "retry_content_insight_artifact_api_v1_ai_content_insight_runs__run_id__artifacts__artifact_type__retry_post",
+        "summary": "Retry Page Summary Run",
+        "operationId": "retry_page_summary_run_api_v1_ai_page_summary_runs__run_id__retry_post",
         "parameters": [
           {
             "name": "run_id",
@@ -225,11 +224,226 @@
             }
           },
           {
-            "name": "artifact_type",
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-project-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentInsightRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/storyline-runs": {
+      "post": {
+        "tags": [
+          "content-insights"
+        ],
+        "summary": "Create Storyline Run",
+        "operationId": "create_storyline_run_api_v1_ai_storyline_runs_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-project-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContentInsightCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentInsightRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/storyline-runs/{run_id}": {
+      "get": {
+        "tags": [
+          "content-insights"
+        ],
+        "summary": "Get Storyline Run",
+        "operationId": "get_storyline_run_api_v1_ai_storyline_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/ArtifactType"
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-project-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Project-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContentInsightRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/storyline-runs/{run_id}/retry": {
+      "post": {
+        "tags": [
+          "content-insights"
+        ],
+        "summary": "Retry Storyline Run",
+        "operationId": "retry_storyline_run_api_v1_ai_storyline_runs__run_id__retry_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
             }
           },
           {
@@ -1217,14 +1431,6 @@
           "trigger": {
             "$ref": "#/components/schemas/ContentInsightTrigger"
           },
-          "requested_artifacts": {
-            "items": {
-              "$ref": "#/components/schemas/ArtifactType"
-            },
-            "type": "array",
-            "maxItems": 2,
-            "title": "Requested Artifacts"
-          },
           "project_snapshot": {
             "$ref": "#/components/schemas/ProjectSnapshot"
           }
@@ -1415,28 +1621,6 @@
         ],
         "title": "MessageRequest"
       },
-      "ProjectContentBlock": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "TEXT",
-            "title": "Type"
-          },
-          "value": {
-            "type": "string",
-            "maxLength": 20000,
-            "minLength": 1,
-            "title": "Value"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "type",
-          "value"
-        ],
-        "title": "ProjectContentBlock"
-      },
       "ProjectFact": {
         "properties": {
           "business_type": {
@@ -1472,6 +1656,84 @@
           "goal_amount"
         ],
         "title": "ProjectFact"
+      },
+      "ProjectImageBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "IMAGE",
+            "title": "Type"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Value"
+          },
+          "read_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2083,
+                "minLength": 1,
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Url"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "file_size": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10485760.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "value"
+        ],
+        "title": "ProjectImageBlock"
       },
       "ProjectReward": {
         "properties": {
@@ -1537,7 +1799,21 @@
           },
           "story_content": {
             "items": {
-              "$ref": "#/components/schemas/ProjectContentBlock"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ProjectTextBlock"
+                },
+                {
+                  "$ref": "#/components/schemas/ProjectImageBlock"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "IMAGE": "#/components/schemas/ProjectImageBlock",
+                  "TEXT": "#/components/schemas/ProjectTextBlock"
+                }
+              }
             },
             "type": "array",
             "maxItems": 300,
@@ -1550,6 +1826,28 @@
           "title"
         ],
         "title": "ProjectSnapshot"
+      },
+      "ProjectTextBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "TEXT",
+            "title": "Type"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "value"
+        ],
+        "title": "ProjectTextBlock"
       },
       "RewardFact": {
         "properties": {
@@ -1908,8 +2206,8 @@
       "StorylineSectionRole": {
         "type": "string",
         "enum": [
-          "REWARD_IDENTITY",
-          "PROJECT_REASON"
+          "WHAT",
+          "WHY"
         ],
         "title": "StorylineSectionRole"
       },

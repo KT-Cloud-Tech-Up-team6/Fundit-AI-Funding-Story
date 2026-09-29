@@ -2,20 +2,29 @@ import hashlib
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
+
+import httpx
 
 from ..application import ApplicationConflict, ApplicationInvalid
 from ..domain.repositories import Record, RecordRepository
 from ..job_lease import leased_record
+from ..media import ImageReadUrlExpired
 from .models import (
     ArtifactOutput,
     ArtifactStatus,
     ArtifactType,
     ContentInsightCreateRequest,
+    ProjectSnapshot,
     RunStatus,
 )
 from .policy import POLICY_VERSION, resolve_policy
 
-RUN_KIND = "content_insight_run"
+LEGACY_RUN_KIND = "content_insight_run"
+RUN_KINDS = {
+    ArtifactType.PAGE_SUMMARY: "page_summary_run",
+    ArtifactType.STORYLINE: "storyline_run",
+}
 ARTIFACT_KIND = "content_insight_artifact"
 
 
@@ -29,9 +38,14 @@ def _fingerprint(body: ContentInsightCreateRequest) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _source_hash(body: ContentInsightCreateRequest) -> str:
+def _source_hash(snapshot: ProjectSnapshot) -> str:
+    source = snapshot.model_dump(mode="json")
+    for block in source["story_content"]:
+        if block["type"] == "IMAGE":
+            block.pop("read_url", None)
+            block.pop("expires_at", None)
     canonical = json.dumps(
-        body.project_snapshot.model_dump(mode="json"),
+        source,
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
@@ -61,7 +75,7 @@ def _aggregate_status(statuses: list[ArtifactStatus]) -> RunStatus:
 
 
 class ContentInsightsApplication:
-    """Application service for one facade run with independently durable artifacts."""
+    """Application service for independently durable summary and storyline runs."""
 
     def __init__(self, records: RecordRepository):
         self._records = records
@@ -70,31 +84,40 @@ class ContentInsightsApplication:
         self,
         body: ContentInsightCreateRequest,
         project: str,
+        artifact_type: ArtifactType,
     ) -> tuple[dict, list[tuple[str, ArtifactType]]]:
         try:
-            policy = resolve_policy(body.trigger, body.requested_artifacts)
+            policy = resolve_policy(body.trigger, artifact_type)
         except ValueError as exc:
             raise ApplicationInvalid(str(exc)) from exc
+        if artifact_type == ArtifactType.STORYLINE:
+            snapshot = body.project_snapshot
+            has_text = bool(snapshot.description.strip()) or any(
+                block.type == "TEXT" and block.value.strip() for block in snapshot.story_content
+            ) or any(reward.description.strip() for reward in snapshot.rewards)
+            if not has_text:
+                raise ApplicationInvalid("Storyline에는 텍스트 기반 프로젝트 정보가 필요합니다.")
 
         fingerprint = _fingerprint(body)
-        source_hash = _source_hash(body)
-        request_key = "content-insights:" + body.idempotency_key
+        source_hash = _source_hash(body.project_snapshot)
+        run_kind = RUN_KINDS[artifact_type]
+        request_key = f"content-insights:{artifact_type.value}:" + body.idempotency_key
         with self._records.transaction() as tx:
             tx.lock_request(project + ":" + request_key)
-            tx.lock_request(project + ":content-insights-revision")
+            tx.lock_request(project + ":" + run_kind + ":revision")
             existing = tx.get_request(project, request_key)
             if existing:
                 if existing["fingerprint"] != fingerprint:
                     raise ApplicationConflict("중복 키의 입력이 다릅니다.")
-                return self._public_run(tx, tx.get(existing["record_id"], project, kind=RUN_KIND)), []
+                return self._public_run(tx, tx.get(existing["record_id"], project, kind=run_kind)), []
 
-            previous = tx.latest(project, RUN_KIND)
+            previous = tx.latest(project, run_kind)
             if previous:
                 previous_revision = int(previous["data"]["source_revision"])
                 if previous_revision > body.source_revision:
                     raise ApplicationConflict("더 최신 프로젝트 입력 버전이 이미 처리되었습니다.")
                 if previous_revision == body.source_revision:
-                    raise ApplicationConflict("같은 프로젝트 입력 버전의 생성 작업이 이미 존재합니다.")
+                    self._validate_url_refresh(tx, previous, body, artifact_type, source_hash)
                 self._mark_stale(tx, previous)
 
             parent_data = {
@@ -114,41 +137,82 @@ class ContentInsightsApplication:
                 "artifacts": {},
                 "required_artifacts_ready": False,
             }
-            run_id = tx.create(project, RUN_KIND, parent_data)
+            run_id = tx.create(project, run_kind, parent_data)
             dispatch = []
-            for artifact_type in ArtifactType:
-                artifact_policy = policy[artifact_type]
+            for candidate_type in ArtifactType:
+                artifact_policy = policy[candidate_type]
                 if not artifact_policy.requested:
-                    parent_data["artifacts"][artifact_type.value] = None
+                    parent_data["artifacts"][candidate_type.value] = None
                     continue
                 artifact_id = tx.create(
                     project,
                     ARTIFACT_KIND,
                     {
                         "run_id": run_id,
-                        "artifact_type": artifact_type.value,
+                        "run_kind": run_kind,
+                        "artifact_type": candidate_type.value,
                         "source_revision": body.source_revision,
                         "source_hash": source_hash,
-                        "job_key": f"{request_key}:{artifact_type.value}",
+                        "job_key": f"{request_key}:{candidate_type.value}",
                         "required": artifact_policy.required,
                         "status": ArtifactStatus.QUEUED.value,
                         "attempts": 0,
-                        "schema_version": 2 if artifact_type == ArtifactType.STORYLINE else 1,
+                        "schema_version": 2 if candidate_type == ArtifactType.PAGE_SUMMARY else 1,
                         "output": None,
                         "error": None,
                         "prompt_version": None,
                         "model": None,
                     },
                 )
-                parent_data["artifacts"][artifact_type.value] = artifact_id
-                dispatch.append((artifact_id, artifact_type))
+                parent_data["artifacts"][candidate_type.value] = artifact_id
+                dispatch.append((artifact_id, candidate_type))
             tx.save(run_id, parent_data)
             tx.add_request(project, request_key, fingerprint, run_id)
-            result = self._public_run(tx, tx.get(run_id, project, kind=RUN_KIND))
+            result = self._public_run(tx, tx.get(run_id, project, kind=run_kind))
         return result, dispatch
 
-    def get_run(self, run_id: str, project: str) -> dict:
-        return self._public_run(self._records, self._records.get(run_id, project, kind=RUN_KIND))
+    @staticmethod
+    def _validate_url_refresh(
+        repository: RecordRepository,
+        previous: Record,
+        body: ContentInsightCreateRequest,
+        artifact_type: ArtifactType,
+        source_hash: str,
+    ) -> None:
+        data = previous["data"]
+        if artifact_type != ArtifactType.PAGE_SUMMARY or data["status"] != RunStatus.FAILED.value:
+            raise ApplicationConflict("같은 프로젝트 입력 버전의 생성 작업이 이미 존재합니다.")
+        artifact = repository.get(
+            data["artifacts"][ArtifactType.PAGE_SUMMARY.value],
+            previous["project_id"],
+            kind=ARTIFACT_KIND,
+        )["data"]
+        if (
+            artifact["status"] != ArtifactStatus.FAILED.value
+            or (artifact.get("error") or {}).get("code") != ImageReadUrlExpired.code
+        ):
+            raise ApplicationConflict("같은 버전의 새 작업은 이미지 읽기 URL 만료 실패에만 허용됩니다.")
+        old_snapshot = ProjectSnapshot.model_validate(data["project_snapshot"])
+        # Recompute from the snapshot, including records written before hashes
+        # excluded signed URLs. MIME, size, stable image URLs and order stay fixed.
+        if data["trigger"] != body.trigger.value or _source_hash(old_snapshot) != source_hash:
+            raise ApplicationConflict("콘텐츠가 변경되면 source_revision을 증가시켜야 합니다.")
+        renewed_failed_url = False
+        now = datetime.now(UTC)
+        for index, (old, new) in enumerate(zip(old_snapshot.story_content, body.project_snapshot.story_content)):
+            if old.type != "IMAGE" or old.read_url is None:
+                continue
+            if new.read_url is None or new.expires_at is None or new.expires_at <= now:
+                raise ApplicationConflict("유효한 새 이미지 읽기 URL과 만료 시각이 필요합니다.")
+            if artifact.get("expired_image_slot") == f"story_content.{index}":
+                renewed_failed_url = new.read_url != old.read_url
+        if not renewed_failed_url:
+            raise ApplicationConflict("만료로 실패한 이미지의 읽기 URL을 새로 발급해야 합니다.")
+
+    def get_run(self, run_id: str, project: str, artifact_type: ArtifactType) -> dict:
+        return self._public_run(
+            self._records, self._records.get(run_id, project, kind=RUN_KINDS[artifact_type])
+        )
 
     def retry_artifact(
         self,
@@ -156,9 +220,10 @@ class ContentInsightsApplication:
         artifact_type: ArtifactType,
         project: str,
     ) -> tuple[dict, tuple[str, ArtifactType]]:
+        run_kind = RUN_KINDS[artifact_type]
         with self._records.transaction() as tx:
             tx.lock_request(project + ":content-insights-artifact:" + run_id + ":" + artifact_type.value)
-            parent = tx.get(run_id, project, lock=True, kind=RUN_KIND)
+            parent = tx.get(run_id, project, lock=True, kind=run_kind)
             if parent["data"]["status"] == RunStatus.STALE.value:
                 raise ApplicationConflict("최신 프로젝트 입력 버전의 작업만 재시도할 수 있습니다.")
             artifact_id = parent["data"]["artifacts"].get(artifact_type.value)
@@ -176,7 +241,7 @@ class ContentInsightsApplication:
             )
             tx.save(artifact_id, artifact["data"])
             self._refresh_parent(tx, run_id, project)
-            result = self._public_run(tx, tx.get(run_id, project, kind=RUN_KIND))
+            result = self._public_run(tx, tx.get(run_id, project, kind=run_kind))
         return result, (artifact_id, artifact_type)
 
     def pending_job_ids(self) -> list[str]:
@@ -207,7 +272,9 @@ class ContentInsightsApplication:
                 yield None
                 return
             parent = self._records.get(
-                artifact["data"]["run_id"], artifact["project_id"], kind=RUN_KIND
+                artifact["data"]["run_id"],
+                artifact["project_id"],
+                kind=artifact["data"].get("run_kind", LEGACY_RUN_KIND),
             )
             if parent["data"]["status"] == RunStatus.STALE.value:
                 artifact["data"]["status"] = ArtifactStatus.STALE.value
@@ -223,7 +290,11 @@ class ContentInsightsApplication:
             yield artifact
 
     def artifact_context(self, artifact: Record) -> tuple[dict, ArtifactType]:
-        parent = self._records.get(artifact["data"]["run_id"], artifact["project_id"], kind=RUN_KIND)
+        parent = self._records.get(
+            artifact["data"]["run_id"],
+            artifact["project_id"],
+            kind=artifact["data"].get("run_kind", LEGACY_RUN_KIND),
+        )
         return parent["data"]["project_snapshot"], ArtifactType(artifact["data"]["artifact_type"])
 
     def complete_artifact(
@@ -238,12 +309,14 @@ class ContentInsightsApplication:
         if artifact["data"]["status"] != ArtifactStatus.RUNNING.value:
             raise ApplicationConflict("실행 중인 결과만 완료할 수 있습니다.")
         artifact_type = ArtifactType(artifact["data"]["artifact_type"])
-        if artifact_type == ArtifactType.PAGE_SUMMARY and output.content is None:
-            raise ApplicationInvalid("페이지 요약은 content 출력이 필요합니다.")
-        if artifact_type == ArtifactType.STORYLINE and (
+        if artifact_type == ArtifactType.PAGE_SUMMARY and (
             output.sections is None or output.schema_version != 2
         ):
-            raise ApplicationInvalid("스토리라인은 schema v2의 2개 section 출력이 필요합니다.")
+            raise ApplicationInvalid("페이지 요약은 schema v2의 두 section 출력이 필요합니다.")
+        if artifact_type == ArtifactType.STORYLINE and (
+            output.content is None or output.schema_version != 1
+        ):
+            raise ApplicationInvalid("스토리라인은 schema v1의 content 출력이 필요합니다.")
         artifact["data"].update(
             status=ArtifactStatus.SUCCEEDED.value,
             output=output.model_dump(mode="json"),
@@ -267,8 +340,12 @@ class ContentInsightsApplication:
         model: str | None = None,
     ) -> None:
         artifact = self._records.get(artifact_id, kind=ARTIFACT_KIND)
-        code = getattr(exc, "code", None)
-        retryable = code in (429, 500, 502, 503, 504) or isinstance(exc, (TimeoutError, ConnectionError))
+        code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+        if isinstance(exc, httpx.HTTPStatusError):
+            code = exc.response.status_code
+        retryable = code in (429, 500, 502, 503, 504) or isinstance(
+            exc, (TimeoutError, ConnectionError, httpx.TransportError)
+        )
         artifact["data"].update(
             status=ArtifactStatus.FAILED.value,
             output=None,
@@ -277,8 +354,12 @@ class ContentInsightsApplication:
             error={
                 "code": str(code) if code is not None else type(exc).__name__.upper(),
                 "retryable": retryable,
-                "message": "생성 작업에 실패했습니다.",
+                "message": (
+                    "이미지 읽기 URL이 만료되었습니다. 새 URL과 새 idempotency_key로 같은 source_revision을 요청하세요."
+                    if isinstance(exc, ImageReadUrlExpired) else "생성 작업에 실패했습니다."
+                ),
             },
+            expired_image_slot=exc.slot_id if isinstance(exc, ImageReadUrlExpired) else None,
         )
         self._records.save(artifact_id, artifact["data"])
         self._refresh_parent(
@@ -308,7 +389,7 @@ class ContentInsightsApplication:
     @staticmethod
     def _refresh_parent(repository: RecordRepository, run_id: str, project: str) -> None:
         with repository.transaction() as tx:
-            parent = tx.get(run_id, project, lock=True, kind=RUN_KIND)
+            parent = tx.get(run_id, project, lock=True)
             if parent["data"]["status"] == RunStatus.STALE.value:
                 return
             artifacts = []
