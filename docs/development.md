@@ -21,7 +21,7 @@ Linux에서는 Chromium 설치에 `--with-deps`를 추가한다. 폰트는 Prete
 
 | 프로필 | 용도 | 텍스트 | 이미지 | 인증 |
 |---|---|---|---|---|
-| `runtime` | dev/prod EKS·운영동등 통합 검증 | `gemini-3.8-flash` | `gpt-image-2.5-flare` | Google external ADC + OpenAI EKS WIF |
+| `runtime` | dev/prod EKS·운영동등 통합 검증 | `gemini-3.8-flash` | `gpt-image-2.5-flare` | Google WIF (ADC로 설정 로드) + OpenAI EKS WIF |
 | `local_openai_smoke` | 로컬 운영 모델 smoke | `gemini-3.8-flash` | `gpt-image-2.5-flare` | `gcloud` ADC + OpenAI API key |
 | `local_google_experiment` | 기본 로컬 프롬프트·디자인 실험 | `gemini-3.8-flash` | 기본 `gemini-3.1-flash-image`; Gemini 모델 override 허용 | `gcloud` ADC |
 | 자동 테스트 | `APP_ENV=test`, 외부 호출 차단 | mock | mock | 없음 |
@@ -41,13 +41,15 @@ dev/prod 배포에서는 다음 값을 ConfigMap·Secret으로 주입한다.
 
 | 배포 설정 | 용도 |
 |---|---|
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | 기존 AI PostgreSQL 접속 |
-| `GOOGLE_APPLICATION_CREDENTIALS` | EKS에서 마운트한 GCP `external_account` ADC JSON 경로; local은 `gcloud` ADC 사용 |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | BE와 공유하는 PostgreSQL 접속 |
+| `GOOGLE_APPLICATION_CREDENTIALS` | EKS에서 ADC가 읽을 Google WIF `external_account` 설정 JSON 경로 |
 | `OPENAI_IDENTITY_PROVIDER_ID`, `OPENAI_SERVICE_ACCOUNT_ID`, `OPENAI_WIF_AUDIENCE` | OpenAI Platform이 발급한 WIF provider ID·OpenAI project service account ID와 EKS token audience; dev/prod 필수 |
 | `OPENAI_WIF_TOKEN_FILE` | EKS projected ServiceAccount token 경로; dev/prod 필수 |
 | `PROJECT_SERVICE_BASE_URL`, `INTERNAL_API_KEY` | AI → BE 내부 연동 |
 
-텍스트와 선택적 Google 이미지 Provider는 ADC를 사용한다. 로컬 최초 인증은 `gcloud auth application-default login`으로 설정한다. AWS EKS에서는 GCP external-account credential configuration을 `GOOGLE_APPLICATION_CREDENTIALS`로 마운트해 같은 ADC 경로를 사용한다. OpenAI 이미지 Provider의 dev/prod 인증은 EKS projected ServiceAccount token 기반 WIF만 허용한다. 두 Provider는 자격 증명 파일·토큰 경로를 공유하지 않는다. GCP 서비스 계정 JSON key와 OpenAI API key는 배포하지 않는다. Funding Story 프롬프트·입출력은 외부 tracing으로 전송하지 않는다. 배포 계약과 검증 절차는 [EKS Provider 인증](aws-eks-provider-auth.md)을 따른다.
+Google Provider는 ADC로 인증 정보·설정을 자동으로 찾는다. 로컬에서는 `gcloud auth application-default login`으로 만든 인증 정보를 사용한다. EKS에서는 `GOOGLE_APPLICATION_CREDENTIALS`가 가리키는 `external_account` 설정 JSON을 ADC로 읽고, 인증 라이브러리가 EKS 토큰을 이용해 WIF 단기 인증을 수행한다. ADC와 WIF는 배포에서 함께 사용하며, JSON에는 서비스 계정 비밀키가 없다.
+
+OpenAI 이미지 Provider의 dev/prod 인증은 별도 SDK 설정과 EKS projected ServiceAccount token 기반 WIF를 사용한다. Google과 OpenAI의 토큰 audience·파일 경로를 분리한다. GCP 서비스 계정 JSON key와 OpenAI API key는 배포하지 않는다. Funding Story 프롬프트·입출력은 외부 tracing으로 전송하지 않는다. 배포 계약과 검증 절차는 [EKS Provider 인증](aws-eks-provider-auth.md)을 따른다.
 
 같은 Provider 계정·위치·모델의 worker는 PostgreSQL 제어 row와 transaction lock으로 호출 제한을 공유한다. 429는 신규 호출 대기와 동시성 축소를 적용하고 정상 호출 3회마다 복구한다. 입력·생성 결과는 제어 row에 저장하지 않는다.
 
@@ -124,6 +126,8 @@ PR에서는 기존 테스트가 통과한 뒤 `linux/amd64` Docker 이미지를 
 | 이미지 태그 | `sha-<commit SHA>` |
 
 게시 워크플로에는 `environment:`와 AWS Access Key를 설정하지 않는다. API·worker의 배포 환경 변수와 Secret은 위 [설치와 설정](#설치와-설정) 및 [EKS Provider 인증 계약](aws-eks-provider-auth.md)을 따른다. DB migration과 실제 EKS 배포는 별도 Job·GitOps에서 진행한다.
+
+인프라팀에 전달할 AI API·worker 환경변수 목록은 [배포 환경변수](funding-story-ai-env.md)에 정리했다. BE 요청·callback 계약은 별도 연동 문서를 따른다.
 
 ## PostgreSQL 운영 전환 계약
 
