@@ -1,0 +1,8 @@
+FROM flyway/flyway:13.7.0
+
+COPY db/migration/ /flyway/sql/
+ENV FLYWAY_LOCATIONS=filesystem:/flyway/sql \
+    FLYWAY_DEFAULT_SCHEMA=public \
+    FLYWAY_SCHEMAS=public \
+    FLYWAY_CLEAN_DISABLED=true
+CMD ["migrate"]

@@ -4,6 +4,7 @@
 
 | 자료 | 용도 |
 | --- | --- |
+| [DB 마이그레이션](funding-story-ai-migration.md) | Flyway 이미지·SQL·Job 변수·적용 순서 |
 | [환경변수 목록](funding-story-ai-env.md) | AI API와 worker에 주입할 변수, Secret 구분 |
 | [WIF 인증 계약](aws-eks-provider-auth.md) | ADC·WIF 역할, Google·OpenAI 신뢰 설정, 토큰 audience와 파일 경로 |
 | [Google dev 설정 JSON](../deploy/auth/google-wif-dev.json) | 비밀키 없는 `external_account` 설정. Notion에도 파일 첨부 |
@@ -35,4 +36,4 @@ Google 설정은 다시 조회해 Provider 활성 상태·권한 연결·사용�
 
 인프라팀은 확정된 값으로 EKS 토큰·설정 JSON을 마운트하고 환경변수를 주입합니다. Google·OpenAI 실제 dev 값은 문서와 YAML 예시에 반영됐습니다. YAML은 인증 설정 예시이며, 실제 배포 매니페스트는 GitOps에서 관리합니다.
 
-DB·Flyway Job·Secret 참조·GitOps 배포는 인프라팀이 준비합니다. DB 접속 정보와 서비스 간 토큰은 BE·인프라팀이 관리하고 주입합니다. AI팀의 전달 대상은 위 Google·OpenAI 인증 설정값과 Google 설정 JSON입니다.
+DB·Flyway Job·Secret 참조·GitOps 배포는 인프라팀이 준비합니다. DB 접속 정보와 서비스 간 토큰은 BE·인프라팀이 관리하고 주입합니다. AI팀은 Google·OpenAI 인증 설정값·Google 설정 JSON과 DB 마이그레이션 이미지·적용 문서를 제공합니다.

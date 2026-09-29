@@ -11,6 +11,8 @@
 
 ## PostgreSQL DB
 
+BE와 같은 PostgreSQL 서버의 AI용 논리 DB를 사용합니다. `DB_NAME`은 [마이그레이션 Job](funding-story-ai-migration.md)과 동일하게 지정합니다.
+
 | 환경변수 | 값 |
 | --- | --- |
 | `DB_HOST` | `<DB_HOST>` |
