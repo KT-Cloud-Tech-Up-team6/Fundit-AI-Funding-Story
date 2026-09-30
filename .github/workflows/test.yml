@@ -64,25 +64,72 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
       - name: Push Docker image
+        id: push-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
+          set -euo pipefail
           image_uri="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           docker tag "fundit-ai-funding-story:${IMAGE_TAG}" "$image_uri"
-          docker push "$image_uri"
+          push_log="$RUNNER_TEMP/funding-story-runtime-push.log"
+          docker push "$image_uri" | tee "$push_log"
+          image_digest="$(sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' "$push_log" | tail -n 1)"
+          if [[ ! "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Could not read the runtime image digest.'
+            exit 1
+          fi
+          printf 'image_digest=%s\n' "$image_digest" >> "$GITHUB_OUTPUT"
           printf 'Image: `%s`\nPlatform: `linux/amd64`\nCommit: `%s`\n' "$image_uri" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
       - name: Push migration image and record immutable reference
+        id: push-migration
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
+          set -euo pipefail
           image_uri="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}-migration"
           docker tag "fundit-ai-funding-story:${IMAGE_TAG}-migration" "$image_uri"
-          docker push "$image_uri"
-          immutable_uri=$(docker image inspect "$image_uri" --format '{{index .RepoDigests 0}}')
-          test -n "$immutable_uri"
+          push_log="$RUNNER_TEMP/funding-story-migration-push.log"
+          docker push "$image_uri" | tee "$push_log"
+          image_digest="$(sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' "$push_log" | tail -n 1)"
+          if [[ ! "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Could not read the migration image digest.'
+            exit 1
+          fi
+          printf 'image_digest=%s\n' "$image_digest" >> "$GITHUB_OUTPUT"
+          immutable_uri="${ECR_REGISTRY}/${ECR_REPOSITORY}@${image_digest}"
           printf 'Migration image: `%s`\nDigest reference: `%s`\nPlatform: `linux/amd64`\nCommit: `%s`\n' \
             "$image_uri" "$immutable_uri" "$GITHUB_SHA" | tee migration-image.txt >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: migration-image
           path: migration-image.txt
+
+      - name: Dispatch GitOps runtime and migration images
+        env:
+          GH_TOKEN: ${{ secrets.FUNDIT_GITOPS_TOKEN }}
+          RUNTIME_DIGEST: ${{ steps.push-image.outputs.image_digest }}
+          MIGRATION_DIGEST: ${{ steps.push-migration.outputs.image_digest }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo '::error::Missing FUNDIT_GITOPS_TOKEN Actions secret.'
+            exit 1
+          fi
+          for digest in "$RUNTIME_DIGEST" "$MIGRATION_DIGEST"; do
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo '::error::Missing valid runtime or migration image digest.'
+              exit 1
+            fi
+          done
+
+          gh workflow run cd-dispatch-funding-story-images.yml \
+            --repo KT-Cloud-Tech-Up-team6/Fundit-GitOps \
+            --ref main \
+            -f runtime_tag="$IMAGE_TAG" \
+            -f runtime_digest="$RUNTIME_DIGEST" \
+            -f migration_tag="${IMAGE_TAG}-migration" \
+            -f migration_digest="$MIGRATION_DIGEST" \
+            -f source_sha="$GITHUB_SHA"
+
+          printf 'GitOps runtime and migration image update requested for `%s`.\n' \
+            "$IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"
