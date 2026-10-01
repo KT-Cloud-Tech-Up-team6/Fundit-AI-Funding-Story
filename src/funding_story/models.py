@@ -318,7 +318,7 @@ class RunCompletionRequest(StrictModel):
 
 class RunCompletionResponse(StrictModel):
     run_id: PublicId
-    status: Literal["succeeded", "partially_succeeded", "failed"]
+    status: Literal["succeeded", "partially_succeeded", "failed", "discarded"]
 
 
 class ProjectInput(StrictModel):

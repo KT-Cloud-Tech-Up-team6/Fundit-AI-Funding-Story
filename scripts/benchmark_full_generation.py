@@ -237,7 +237,8 @@ def main():
                 "application",
                 SimpleNamespace(
                     worker_context=lambda _: (context, review, []),
-                    complete_run_delivery=lambda _, status: setattr(backend, "delivered", status),
+                    complete_run_delivery=lambda _, status, **kwargs: setattr(backend, "delivered", status),
+                    prepare_run_delivery=lambda _, payload, **kwargs: payload,
                 ),
             )
         )

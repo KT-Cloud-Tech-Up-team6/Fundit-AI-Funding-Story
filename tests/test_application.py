@@ -167,7 +167,7 @@ def test_session_to_run_is_idempotent_without_persisting_result_snapshot():
     assert duplicate_dispatch is False
     assert duplicate["run_id"] == run["run_id"]
     stored = repository.get(run["run_id"])["data"]
-    assert set(stored) == {"status", "session_id", "confirmed_revision", "error"}
+    assert set(stored) == {"status", "session_id", "confirmed_revision", "error", "_queued_at"}
     assert application.pending_job_ids() == [run["run_id"]]
 
 

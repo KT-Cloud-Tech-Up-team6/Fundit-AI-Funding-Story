@@ -4,6 +4,7 @@ import random
 import time
 from collections import Counter, deque
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from contextvars import copy_context
 from dataclasses import dataclass
 
 import httpx
@@ -101,7 +102,7 @@ def generate_images(jobs: list[ImageJob], references):
                     attempts[candidate.slot_id] += 1
                     permits[candidate.slot_id] = permit
                     try:
-                        active[pool.submit(execute, candidate, permit)] = candidate
+                        active[pool.submit(copy_context().run, execute, candidate, permit)] = candidate
                     except BaseException:
                         gate.finish(permit)
                         raise

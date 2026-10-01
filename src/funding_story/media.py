@@ -16,6 +16,7 @@ from .models import (
     UploadTargetsRequest,
     UploadTargetsResponse,
 )
+from .observability import emit
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
@@ -165,11 +166,16 @@ class BackendClient:
         last_error = None
         for attempt in range(cfg.completion_callback_attempts):
             try:
+                emit("completion_callback_started", run_id=run_id, attempt=attempt + 1, status=body.status)
                 response = httpx.post(
                     self._base + f"/internal/ai/runs/{run_id}/completion",
                     headers={**self._headers, "Content-Type": "application/json"},
                     content=payload,
                     timeout=self._timeout,
+                )
+                emit(
+                    "completion_callback_response", run_id=run_id, attempt=attempt + 1,
+                    http_status=response.status_code,
                 )
                 response.raise_for_status()
                 return RunCompletionResponse.model_validate(response.json())
@@ -180,6 +186,10 @@ class BackendClient:
                 if attempt + 1 < cfg.completion_callback_attempts:
                     time.sleep(min(2**attempt, 4))
             except httpx.TransportError as exc:
+                emit(
+                    "completion_callback_transport_failed", run_id=run_id,
+                    attempt=attempt + 1, error_type=type(exc).__name__,
+                )
                 last_error = exc
                 if attempt + 1 < cfg.completion_callback_attempts:
                     time.sleep(min(2**attempt, 4))

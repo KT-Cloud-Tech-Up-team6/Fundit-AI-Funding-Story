@@ -89,8 +89,9 @@ flowchart LR
 - Funding Story sessions, chats, run control state, revisions, and idempotency are PostgreSQL TTL data.
 - Project facts, source images, final PNGs, generated public content, and final run state are BE-owned.
 - Source images and generated PNGs are held in AI process memory only while a job is running.
-- Funding Story does not persist input snapshots, generated documents, intermediate images, or
-  LangGraph checkpoints in PostgreSQL.
+- Funding Story does not persist input snapshots, intermediate images, or LangGraph checkpoints.
+  A pending completion payload is kept as TTL data only until BE acknowledges it, so a restart
+  can retry delivery without repeating model calls. BE owns the final generated document.
 - Funding Story control state and Content Insights reuse the same AI PostgreSQL logical database.
 - Logs contain operational metadata only; prompts, user text, Core DTOs, signed URLs, and generated
   bodies are not written to logs or tracing systems.

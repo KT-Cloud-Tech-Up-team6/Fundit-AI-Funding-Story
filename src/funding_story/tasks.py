@@ -1,5 +1,7 @@
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import dataclass
 
 from . import provider
@@ -23,9 +25,10 @@ from .models import (
     RunCompletionRequest,
     SuccessfulImage,
 )
-from .observability import emit
+from .observability import emit, event_context, stage
 from .planner import plan, requirements, validate_copy
 from .renderer import render_scene
+from .worker_errors import JobOwnershipLost, JobTimeoutError
 
 
 @dataclass(frozen=True)
@@ -111,47 +114,97 @@ class CompletionDeliveryError(RuntimeError):
     """A finalized result must not be replaced by a generation-failure callback."""
 
 
-def _deliver_completion(client, run_id, body):
+def _deliver_completion(client, run_id, body, *, lease_token=None):
     try:
+        payload = application.prepare_run_delivery(run_id, body.model_dump(mode="json"), lease_token=lease_token)
+        body = RunCompletionRequest.model_validate(payload)
         response = client.complete(run_id, body)
-        application.complete_run_delivery(run_id, response.status)
+        application.complete_run_delivery(run_id, response.status, lease_token=lease_token)
+        emit("job_completed", run_id=run_id, status=response.status)
+    except JobOwnershipLost:
+        raise
     except Exception as exc:  # Includes local bookkeeping after BE acceptance.
         raise CompletionDeliveryError("완료 결과 전달 처리에 실패했습니다.") from exc
+
+
+def _delivery_failed(row, exc):
+    if application.retry_run_delivery(row["id"], lease_token=row["data"].get("_lease_token")):
+        emit("completion_retry_queued", run_id=row["id"], error_type=type(exc.__cause__ or exc).__name__)
+    else:
+        application.fail_job(row["id"], exc)
+        emit("completion_delivery_exhausted", run_id=row["id"])
+
+
+def handle_job_failure(row, exc):
+    record_id = row["id"]
+    if isinstance(exc, JobOwnershipLost):
+        emit("job_ownership_lost", run_id=record_id)
+        return
+    input_error = exc.public_error() if isinstance(exc, InputImageValidationError) else None
+    if isinstance(exc, JobTimeoutError):
+        input_error = {
+            "code": "GENERATION_TIMEOUT", "message": "작업 처리 제한 시간을 초과했습니다.",
+            "retryable": True, "detail": None,
+        }
+    emit(
+        "job_failed", run_id=record_id, error_type=type(exc).__name__,
+        error_code=input_error["code"] if input_error else None,
+    )
+    if row["kind"] != "run":
+        application.fail_job(record_id, exc)
+        return
+    if isinstance(exc, CompletionDeliveryError):
+        _delivery_failed(row, exc)
+        return
+    try:
+        # A child may have stopped after BE accepted its result. Replay exactly that
+        # payload instead of replacing it with a generation-failure callback.
+        current = application.get_job(record_id)
+        if current["data"]["status"] not in ("queued", "running"):
+            return
+        saved = current["data"].get("_completion")
+        body = RunCompletionRequest.model_validate(saved) if saved else _failed_completion(
+            "상세페이지 생성에 실패했습니다.",
+            AsyncError.model_validate(input_error) if input_error else None,
+        )
+        _deliver_completion(
+            BackendClient(row["project_id"]), record_id, body, lease_token=row["data"].get("_lease_token"),
+        )
+    except CompletionDeliveryError as callback_exc:
+        _delivery_failed(row, callback_exc)
 
 
 def execute(record_id):
     with application.claim_job(record_id) as row:
         if row is None:
             return
+        execute_claimed(row)
+
+
+def execute_claimed(row):
+    record_id = row["id"]
+    started = time.monotonic()
+    with event_context(run_id=record_id, kind=row["kind"], session_id=row["data"].get("session_id")):
+        emit("job_started")
         try:
-            if row["kind"] == "chat":
+            if row["kind"] == "run" and row["data"].get("_completion"):
+                with stage("completion_retry"):
+                    _deliver_completion(
+                        BackendClient(row["project_id"]), record_id,
+                        RunCompletionRequest.model_validate(row["data"]["_completion"]),
+                        lease_token=row["data"].get("_lease_token"),
+                    )
+            elif row["kind"] == "chat":
                 chat(row)
+                emit("job_completed", status="succeeded")
             elif row["kind"] == "run":
                 generate(row)
             else:
                 raise ValueError("지원하지 않는 작업 종류입니다.")
         except Exception as exc:  # noqa: BLE001
-            input_error = exc.public_error() if isinstance(exc, InputImageValidationError) else None
-            if row["kind"] == "run" and not isinstance(exc, CompletionDeliveryError):
-                try:
-                    _deliver_completion(
-                        BackendClient(row["project_id"]),
-                        row["id"],
-                        _failed_completion(
-                            "상세페이지 생성에 실패했습니다.",
-                            AsyncError.model_validate(input_error) if input_error else None,
-                        ),
-                    )
-                except Exception as callback_exc:  # noqa: BLE001
-                    application.fail_job(row["id"], callback_exc)
-            else:
-                application.fail_job(row["id"], exc)
-            emit(
-                "job_failed",
-                run_id=record_id,
-                error_type=type(exc).__name__,
-                error_code=input_error["code"] if input_error else None,
-            )
+            handle_job_failure(row, exc)
+        finally:
+            emit("job_attempt_finished", seconds=round(time.monotonic() - started, 3))
 
 
 def _references(context):
@@ -345,7 +398,8 @@ def _render_blocks(scene, sources, failed_blocks):
         max_workers=settings().render_concurrency, thread_name_prefix="story-render"
     ) as pool:
         # map preserves template order even when later blocks finish first.
-        results = list(pool.map(render, candidates))
+        futures = [pool.submit(copy_context().run, render, block) for block in candidates]
+        results = [future.result() for future in futures]
     for block, result in zip(candidates, results, strict=True):
         if result:
             rendered.extend(result)
@@ -399,15 +453,20 @@ def _upload_outputs(client, rendered, failed_blocks):
 
 def generate(row):
     run_id, project = row["id"], row["project_id"]
-    context, review, messages = application.worker_context(run_id)
-    references = _references(context)
-    info = ProjectInput.from_context(context, review)
-    scene, fixed = plan(info, review)
-    draft = _write_copy(run_id, info, review, messages, scene, fixed)
-    sources, failed_blocks = _generate_source_images(info, scene, draft, references)
-    rendered = _render_blocks(scene, sources, failed_blocks)
+    with stage("context_and_references"):
+        context, review, messages = application.worker_context(run_id)
+        references = _references(context)
+        info = ProjectInput.from_context(context, review)
+    with stage("template_and_copy"):
+        scene, fixed = plan(info, review)
+        draft = _write_copy(run_id, info, review, messages, scene, fixed)
+    with stage("image_generation"):
+        sources, failed_blocks = _generate_source_images(info, scene, draft, references)
+    with stage("rendering"):
+        rendered = _render_blocks(scene, sources, failed_blocks)
     client = BackendClient(project)
-    successful = _upload_outputs(client, rendered, failed_blocks)
+    with stage("upload"):
+        successful = _upload_outputs(client, rendered, failed_blocks)
     if successful:
         status = "partially_succeeded" if failed_blocks else "succeeded"
         body = RunCompletionRequest(
@@ -420,4 +479,5 @@ def generate(row):
     else:
         body = _failed_completion("사용 가능한 상세페이지 결과를 만들지 못했습니다.")
         body.failed_slots = list(failed_blocks.values())
-    _deliver_completion(client, run_id, body)
+    with stage("completion"):
+        _deliver_completion(client, run_id, body, lease_token=row.get("data", {}).get("_lease_token"))

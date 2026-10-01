@@ -26,7 +26,9 @@ def test_polling_lanes_select_only_their_jobs(monkeypatch):
 
 def test_polling_worker_routes_each_job_type(monkeypatch):
     calls = []
-    monkeypatch.setattr(worker, "execute", lambda record_id: calls.append(("funding-story", record_id)))
+    monkeypatch.setattr(
+        worker, "execute_isolated", lambda record_id, stop: calls.append(("funding-story", record_id))
+    )
     monkeypatch.setattr(
         worker,
         "execute_content_insight",

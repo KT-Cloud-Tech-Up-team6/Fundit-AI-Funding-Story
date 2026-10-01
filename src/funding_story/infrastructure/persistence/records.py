@@ -101,7 +101,9 @@ class PostgresRecordRepository:
                 "OR (kind='content_insight_artifact' AND data->>'status' IN ('QUEUED','RUNNING'))) "
                 "AND (data->>'status' IN ('queued','QUEUED') "
                 "OR COALESCE((data->>'_lease_until')::double precision,0) "
-                "<= EXTRACT(EPOCH FROM clock_timestamp()))"
+                "<= EXTRACT(EPOCH FROM clock_timestamp())) "
+                "AND COALESCE((data->>'_retry_after')::double precision,0) "
+                "<= EXTRACT(EPOCH FROM clock_timestamp()) ORDER BY created_at, id"
             ).fetchall()
         return [row["id"] for row in rows]
 
