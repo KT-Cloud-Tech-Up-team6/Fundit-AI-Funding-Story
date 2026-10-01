@@ -38,6 +38,23 @@ SSE가 끊기면 새 `message_id`로 자동 재전송하지 않는다. 먼저 �
 동일한 입력을 다시 접수해야 할 때만 같은 `message_id`를 재사용한다. 생성 완료 여부는 로딩
 애니메이션이 아니라 `run.status`와 `GET /api/v1/ai/runs/{run_id}` 응답으로 판단한다.
 
+### 입력 이미지 오류
+
+채팅 SSE의 `done.error`, 생성 완료 callback의 `error`, Content Insights의 artifact `error`에서
+다음 코드를 반환한다. 모두 `retryable=false`이며 오류 메시지에는 이미지 URL·서명·토큰을 넣지 않는다.
+
+| 코드 | 의미 |
+|---|---|
+| `INPUT_IMAGE_TYPE_MISMATCH` | 실제 파일 형식·HTTP Content-Type·BE 입력 MIME이 불일치 |
+| `INPUT_IMAGE_UNSUPPORTED_TYPE` | JPEG·PNG·WebP 이외의 Content-Type |
+| `INPUT_IMAGE_INVALID` | 이미지 파일을 읽거나 검증할 수 없음 |
+
+AI는 이미지를 자동 변환하지 않고 모델 호출 전에 거부한다. 이미지 수정 후에는 BE가 최신 이미지
+정보로 새 Funding Story 세션을 생성해야 한다. 기존 세션은 처음 받은 Core context와 읽기 URL을 보관한다.
+
+관련 작업: [FE 예시 이미지 수정 #534](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-FE/issues/534),
+[BE 업로드 이미지 검증 #224](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-backend/issues/224).
+
 ## Content Insights 공개 상세
 
 FE는 Content Insights AI endpoint를 직접 호출하지 않고 Project Service가 저장한 canonical
