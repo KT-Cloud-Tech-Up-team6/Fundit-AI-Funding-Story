@@ -91,6 +91,21 @@ uv run python -m funding_story.worker --lane page-summary
 uv run python -m funding_story.worker --lane storyline
 ```
 
+Funding Story 작업은 worker가 lease를 소유하고 별도 Python 프로세스에서 실행한다.
+기본 제한은 접수 시점부터 20분이며, 시간 초과 시 자식 프로세스와 렌더러를 종료한 후
+`GENERATION_TIMEOUT` 실패 callback을 시도한다. 재배포 때 중단한 작업은 lease 해제 후 다시 조회한다.
+DB polling·TTL 정리 오류는 로그를 남기고 재시도한다.
+
+완료 callback은 기존 `ai_records`에 전달할 payload만 TTL로 임시 저장한다.
+응답 유실이나 재시작 시 동일한 payload를 재전송하며 모델·이미지 생성을 반복하지 않는다.
+callback 재시도는 접수부터 기본 25분까지이며 ACK 후 payload를 제거한다.
+BE의 callback 대기 제한보다 짧게 설정해야 한다. BE 저장소 기본값은 30분이며,
+Page Summary 이미지의 서명 URL 유효기간 60분과는 별도 설정이다.
+
+운영 로그는 `run_id`로 `job_claimed`, `job_started`, `job_stage_*`, `job_completed`,
+`job_failed`, `completion_callback_response`를 조회한다. callback 로그에는 시도 횟수와 HTTP 상태만
+남기며 키·토큰·서명 URL·입력·생성 결과는 기록하지 않는다. `worker_heartbeat`는 30초 간격이다.
+
 `GET /health`는 상태 확인용이며 `/api/v1/ai` 요청에는 내부 인증과 프로젝트 ID가 필요하다. OpenAPI UI는 `/docs`다. polling 기본 간격은 0.5초이며 `--concurrency`로 lane별 동시성을 지정한다. Content Insights smoke test와 복구 절차는 [운영·연동 안내](content-insights-operations.md)를 따른다.
 
 ## 테스트와 패키징

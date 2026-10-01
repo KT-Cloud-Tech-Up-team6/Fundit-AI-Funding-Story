@@ -9,6 +9,18 @@
 | `APP_ENV` | `dev` |
 | `MODEL_PROFILE` | `runtime` |
 
+### 작업 시간 제한 (기본값 사용 가능)
+
+| 환경변수 | 기본값 |
+| --- | --- |
+| `FUNDING_STORY_JOB_TIMEOUT_SECONDS` | `1200` (접수부터 20분) |
+| `COMPLETION_DELIVERY_TIMEOUT_SECONDS` | `1500` (접수부터 25분) |
+| `IMAGE_GENERATION_BUDGET_SECONDS` | `900` (이미지 생성 단계 15분) |
+
+작업 제한 < callback 전달 제한 < BE callback 대기 제한 순으로 맞춥니다.
+BE의 `FUNDING_STORY_AI_RUN_CALLBACK_TIMEOUT_MINUTES` 기본값은 30분입니다.
+Page Summary 이미지 서명 URL 유효기간 60분과는 별도 값입니다.
+
 ## PostgreSQL DB
 
 BE와 같은 PostgreSQL 서버의 AI용 논리 DB를 사용합니다. `DB_NAME`은 [마이그레이션 Job](funding-story-ai-migration.md)과 동일하게 지정합니다.

@@ -17,7 +17,7 @@ def _claim(records: RecordRepository, record_id: str, queued: str, running: str)
         row = tx.get(record_id, lock=True)
         status = row["data"].get("status")
         active_lease = float(row["data"].get("_lease_until", 0)) > now
-        if status not in (queued, running) or (status == running and active_lease):
+        if status not in (queued, running) or active_lease:
             return None
         row["data"].update(
             status=running,

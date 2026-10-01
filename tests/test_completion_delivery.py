@@ -74,9 +74,15 @@ def test_finalized_callback_is_never_replaced(monkeypatch, status, failure):
     class Application:
         @contextmanager
         def claim_job(self, record_id):
-            yield {"id": record_id, "project_id": "project-1", "kind": "run"}
+            yield {"id": record_id, "project_id": "project-1", "kind": "run", "data": {}}
 
-        def complete_run_delivery(self, run_id, result_status):
+        def prepare_run_delivery(self, run_id, payload, **kwargs):
+            return payload
+
+        def retry_run_delivery(self, run_id, **kwargs):
+            return False
+
+        def complete_run_delivery(self, run_id, result_status, **kwargs):
             if failure == "bookkeeping":
                 raise RuntimeError("local state unavailable")
             delivered.append(result_status)

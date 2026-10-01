@@ -25,11 +25,13 @@ flowchart LR
 | 프로젝트·리워드 사실 | BE Core DB |
 | 원본·최종 이미지 | BE 소유 객체 저장소 |
 | 세션·채팅·run 제어 상태 | AI PostgreSQL TTL |
+| 미전달 completion payload | AI PostgreSQL TTL, ACK 후 삭제·재시작 시 동일 payload 재전송 |
 | 최종 본문·상태·검증 URL | BE |
 | Content Insights artifact | AI PostgreSQL — Funding Story와 별도 기능 |
 
-AI는 BE Core DB를 읽거나 쓰지 않는다. Funding Story는 입력 snapshot, 생성 문서, 중간 이미지,
-최종 이미지, 장기 LangGraph checkpoint를 AI DB에 저장하지 않는다.
+AI는 BE Core DB를 읽거나 쓰지 않는다. Funding Story는 입력 snapshot, 중간·최종 이미지,
+장기 LangGraph checkpoint를 AI DB에 저장하지 않는다. 미전달 completion payload만 TTL로 임시
+보관하고 BE ACK 후 삭제한다. 최종 생성 문서는 BE가 소유한다.
 
 ## 2. BE → AI API
 

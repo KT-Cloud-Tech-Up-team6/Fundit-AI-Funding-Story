@@ -85,6 +85,7 @@ class InMemoryTtlRecordRepository:
             record_id
             for record_id, row in self.records.items()
             if _is_pending(row)
+            and float(row["data"].get("_retry_after", 0)) <= now
             and (
                 row["data"].get("status") == "queued"
                 or float(row["data"].get("_lease_until", 0)) <= now

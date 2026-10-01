@@ -8,8 +8,9 @@ from typing import Literal
 
 from .bootstrap import application, close_pools, content_insights_application, open_pools
 from .content_insights.models import ArtifactType
+from .isolated_job import execute_isolated
 from .observability import emit
-from .tasks import execute, execute_content_insight
+from .tasks import execute_content_insight
 
 Lane = Literal["all", "funding-story", "page-summary", "storyline"]
 
@@ -41,18 +42,25 @@ def pending_jobs(lane: Lane) -> list[PendingJob]:
     return jobs
 
 
-def run_job(job: PendingJob) -> None:
+def run_job(job: PendingJob, stop=None) -> None:
     if job.artifact_type is None:
-        execute(job.record_id)
+        execute_isolated(job.record_id, stop)
     else:
         execute_content_insight(job.record_id, job.artifact_type)
 
 
 def run_worker(lane: Lane, concurrency: int, poll_interval: float, stop: threading.Event) -> None:
-    open_pools()
+    emit("worker_starting", lane=lane, concurrency=concurrency)
+    try:
+        open_pools()
+    except Exception as exc:
+        emit("worker_startup_failed", lane=lane, error_type=type(exc).__name__)
+        raise
+    emit("worker_started", lane=lane, concurrency=concurrency)
     futures: dict[Future, PendingJob] = {}
     active: set[tuple[str, str]] = set()
     last_cleanup = 0.0
+    last_heartbeat = 0.0
     try:
         with ThreadPoolExecutor(max_workers=concurrency, thread_name_prefix=f"ai-{lane}") as pool:
             while not stop.is_set():
@@ -65,30 +73,44 @@ def run_worker(lane: Lane, concurrency: int, poll_interval: float, stop: threadi
                         emit(
                             "polling_job_failed",
                             record_id=job.record_id,
+                            run_id=job.record_id if job.artifact_type is None else None,
                             lane=job.lane,
                             error_type=type(exc).__name__,
                         )
 
                 available = concurrency - len(futures)
                 if available > 0:
-                    for job in pending_jobs(lane):
+                    try:
+                        pending = pending_jobs(lane)
+                    except Exception as exc:  # noqa: BLE001 -- Retry database outages on the next poll.
+                        emit("worker_poll_failed", lane=lane, error_type=type(exc).__name__)
+                        stop.wait(max(poll_interval, 5))
+                        continue
+                    for job in pending:
                         if available <= 0:
                             break
                         if job.key in active:
                             continue
                         active.add(job.key)
-                        futures[pool.submit(run_job, job)] = job
+                        futures[pool.submit(run_job, job, stop)] = job
                         available -= 1
 
                 now = time.monotonic()
                 if lane in ("all", "funding-story") and now - last_cleanup >= 60:
-                    removed = application.cleanup_expired()
-                    if removed:
-                        emit("funding_story_state_expired", count=removed)
+                    try:
+                        removed = application.cleanup_expired()
+                        if removed:
+                            emit("funding_story_state_expired", count=removed)
+                    except Exception as exc:  # noqa: BLE001 -- Cleanup must not stop queue consumption.
+                        emit("worker_cleanup_failed", lane=lane, error_type=type(exc).__name__)
                     last_cleanup = now
+                if now - last_heartbeat >= 30:
+                    emit("worker_heartbeat", lane=lane, active_jobs=len(futures))
+                    last_heartbeat = now
                 stop.wait(poll_interval)
     finally:
         close_pools()
+        emit("worker_stopped", lane=lane)
 
 
 def main() -> None:

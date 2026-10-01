@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     internal_api_key: str = ""
     internal_http_timeout_seconds: float = Field(default=20, gt=0)
     completion_callback_attempts: int = Field(default=3, ge=1, le=5)
+    funding_story_job_timeout_seconds: float = Field(default=1200, gt=0, le=7200)
+    completion_delivery_timeout_seconds: float = Field(default=1500, gt=0, le=7200)
+    completion_delivery_retry_seconds: float = Field(default=30, gt=0, le=120)
     ai_service_token: str
     google_cloud_project: str = ""
     google_cloud_location: str = "global"
@@ -75,7 +78,7 @@ class Settings(BaseSettings):
     image_retry_max_delay_seconds: float = Field(default=30, gt=0, le=120)
     image_request_interval_seconds: float = Field(default=0.25, ge=0, le=60)
     image_request_max_interval_seconds: float = Field(default=20, gt=0, le=120)
-    image_generation_budget_seconds: float = Field(default=3600, gt=0, le=7200)
+    image_generation_budget_seconds: float = Field(default=900, gt=0, le=7200)
     render_concurrency: int = Field(default=2, ge=1, le=4)
     pretendard_font_path: str = ""
 
@@ -92,6 +95,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_configuration(self):
+        if self.completion_delivery_timeout_seconds <= self.funding_story_job_timeout_seconds:
+            raise ValueError("callback 전달 제한 시간은 작업 처리 제한 시간보다 길어야 합니다.")
         profile = MODEL_PROFILE_DEFAULTS[self.model_profile]
         fixed_fields = ("text_model", "image_provider", "image_quality", "openai_auth_mode")
         if self.model_profile != "local_google_experiment":

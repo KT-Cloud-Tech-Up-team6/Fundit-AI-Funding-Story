@@ -79,8 +79,11 @@ class FakeApplication:
     def worker_context(self, run_id):
         return context(), review(), []
 
-    def complete_run_delivery(self, run_id, status):
+    def complete_run_delivery(self, run_id, status, **kwargs):
         self.delivered = (run_id, status)
+
+    def prepare_run_delivery(self, run_id, payload, **kwargs):
+        return payload
 
 
 class FakeBackend:
@@ -167,15 +170,21 @@ def test_execute_reports_failed_callback_when_generation_raises(monkeypatch):
         def claim_job(self, record_id):
             class Claim:
                 def __enter__(self):
-                    return {"id": record_id, "project_id": "project-1", "kind": "run"}
+                    return {"id": record_id, "project_id": "project-1", "kind": "run", "data": {}}
 
                 def __exit__(self, *args):
                     return False
 
             return Claim()
 
-        def complete_run_delivery(self, run_id, status):
+        def complete_run_delivery(self, run_id, status, **kwargs):
             completion.append((run_id, status))
+
+        def prepare_run_delivery(self, run_id, payload, **kwargs):
+            return payload
+
+        def get_job(self, run_id):
+            return {"data": {"status": "running"}}
 
         def fail_job(self, run_id, exc):
             failed.append((run_id, exc))

@@ -1,8 +1,10 @@
 import hashlib
 import json
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+from ..config import settings
 from ..domain.repositories import Record, RecordRepository
 from ..input_image_errors import InputImageValidationError
 from ..job_lease import leased_record
@@ -14,6 +16,7 @@ from ..models import (
     RunRequest,
     SessionCreateRequest,
 )
+from ..worker_errors import JobOwnershipLost
 
 
 class ApplicationConflict(Exception):
@@ -242,6 +245,7 @@ class FundingStoryApplication:
                 {
                     "status": "queued",
                     "session_id": body.session_id,
+                    "_queued_at": time.time(),
                     "confirmed_revision": body.confirmed_revision,
                     "error": None,
                 },
@@ -294,24 +298,56 @@ class FundingStoryApplication:
             chat["data"].update(status="succeeded", revision=new_revision, error=None)
             tx.save(chat_id, chat["data"])
 
-    def complete_run_delivery(self, run_id: str, status: str) -> None:
-        row = self._records.get(run_id, kind="run")
-        self._records.save(
-            run_id,
-            {
-                "status": status,
-                "confirmed_revision": row["data"]["confirmed_revision"],
-                "error": None,
-            },
-        )
-        session = self._records.get(
-            row["data"]["session_id"],
-            row["project_id"],
-            kind="session",
-        )
-        if session["data"].get("active_run_id") == run_id:
-            session["data"]["active_run_id"] = None
-            self._records.save(session["id"], session["data"])
+    @staticmethod
+    def _check_owner(row, lease_token):
+        if lease_token and (
+            row["data"].get("_lease_token") != lease_token
+            or float(row["data"].get("_lease_until", 0)) <= time.time()
+        ):
+            raise JobOwnershipLost("Job lease ownership changed")
+
+    def complete_run_delivery(self, run_id: str, status: str, *, lease_token=None) -> None:
+        with self._records.transaction() as tx:
+            row = tx.get(run_id, lock=True, kind="run")
+            self._check_owner(row, lease_token)
+            session = tx.get(row["data"]["session_id"], row["project_id"], lock=True, kind="session")
+            failure = row["data"].get("_completion", {}).get("error") if status == "failed" else None
+            row["data"].update(status=status, error=failure)
+            row["data"].pop("_completion", None)
+            row["data"].pop("_retry_after", None)
+            tx.save(run_id, row["data"])
+            if session["data"].get("active_run_id") == run_id:
+                session["data"]["active_run_id"] = None
+                tx.save(session["id"], session["data"])
+
+    def get_job(self, record_id: str) -> Record:
+        return self._records.get(record_id)
+
+    def job_queued_at(self, row: Record) -> float:
+        created = row.get("created_at")
+        created = created.timestamp() if hasattr(created, "timestamp") else created
+        return float(row["data"].get("_queued_at", created or time.time()))
+
+    def prepare_run_delivery(self, run_id: str, payload: dict, *, lease_token=None) -> dict:
+        with self._records.transaction() as tx:
+            row = tx.get(run_id, lock=True, kind="run")
+            self._check_owner(row, lease_token)
+            row["data"].setdefault("_completion", payload)
+            row["data"].setdefault("_queued_at", self.job_queued_at(row))
+            tx.save(run_id, row["data"])
+            return row["data"]["_completion"]
+
+    def retry_run_delivery(self, run_id: str, *, lease_token=None) -> bool:
+        with self._records.transaction() as tx:
+            row = tx.get(run_id, lock=True, kind="run")
+            self._check_owner(row, lease_token)
+            if time.time() >= self.job_queued_at(row) + settings().completion_delivery_timeout_seconds:
+                return False
+            row["data"].update(
+                status="queued", _retry_after=time.time() + settings().completion_delivery_retry_seconds,
+            )
+            tx.save(run_id, row["data"])
+            return True
 
     def pending_job_ids(self) -> list[str]:
         return self._records.pending_job_ids()
@@ -343,6 +379,8 @@ class FundingStoryApplication:
         if isinstance(exc, InputImageValidationError):
             error = exc.public_error()
         row["data"].update(status="failed", error=error)
+        row["data"].pop("_completion", None)
+        row["data"].pop("_retry_after", None)
         self._records.save(record_id, row["data"])
         if row["kind"] == "chat":
             session = self._records.get(
