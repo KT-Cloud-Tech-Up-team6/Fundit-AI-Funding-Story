@@ -7,6 +7,7 @@ import httpx
 from PIL import Image
 
 from .config import settings
+from .input_image_errors import InputImageValidationError
 from .models import (
     OutputDescriptor,
     RunCompletionRequest,
@@ -72,9 +73,9 @@ def _read_image(
         response.raise_for_status()
         content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
         if content_type not in ("image/png", "image/jpeg", "image/webp"):
-            raise ValueError("지원하지 않는 입력 이미지 MIME입니다.")
+            raise InputImageValidationError("INPUT_IMAGE_UNSUPPORTED_TYPE")
         if expected_type is not None and content_type != expected_type:
-            raise ValueError("입력 이미지 MIME이 계약과 다릅니다.")
+            raise InputImageValidationError("INPUT_IMAGE_TYPE_MISMATCH")
         chunks = []
         size = 0
         for chunk in response.iter_bytes():
@@ -85,15 +86,22 @@ def _read_image(
     content = b"".join(chunks)
     if expected_size is not None and len(content) != expected_size:
         raise ValueError("입력 이미지 크기가 계약과 다릅니다.")
-    with Image.open(BytesIO(content)) as image:
+    try:
+        image = Image.open(BytesIO(content))
+    except (OSError, ValueError, SyntaxError) as exc:
+        raise InputImageValidationError("INPUT_IMAGE_INVALID") from exc
+    with image:
         expected_format = {
             "image/png": "PNG",
             "image/jpeg": "JPEG",
             "image/webp": "WEBP",
         }[content_type]
         if image.format != expected_format:
-            raise ValueError("지원하지 않는 입력 이미지입니다.")
-        image.verify()
+            raise InputImageValidationError("INPUT_IMAGE_TYPE_MISMATCH")
+        try:
+            image.verify()
+        except (OSError, ValueError, SyntaxError) as exc:
+            raise InputImageValidationError("INPUT_IMAGE_INVALID") from exc
     return content, content_type
 
 

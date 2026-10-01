@@ -9,6 +9,7 @@ from .config import settings
 from .content_insights.worker import execute_artifact
 from .graph import generate_checked
 from .image_jobs import ImageJob, generate_images
+from .input_image_errors import InputImageValidationError
 from .intake import parse_initial_review, parse_review
 from .media import BackendClient, read_source_image
 from .models import (
@@ -91,13 +92,13 @@ def execute_content_insight(artifact_id, artifact_type=None):
     execute_artifact(content_insights_application, artifact_id)
 
 
-def _failed_completion(message: str) -> RunCompletionRequest:
+def _failed_completion(message: str, error: AsyncError | None = None) -> RunCompletionRequest:
     return RunCompletionRequest(
         status="failed",
         generated_body=None,
         successful_images=[],
         failed_slots=[],
-        error=AsyncError(
+        error=error or AsyncError(
             code="GENERATION_FAILED",
             message=message,
             retryable=True,
@@ -130,18 +131,27 @@ def execute(record_id):
             else:
                 raise ValueError("지원하지 않는 작업 종류입니다.")
         except Exception as exc:  # noqa: BLE001
+            input_error = exc.public_error() if isinstance(exc, InputImageValidationError) else None
             if row["kind"] == "run" and not isinstance(exc, CompletionDeliveryError):
                 try:
                     _deliver_completion(
                         BackendClient(row["project_id"]),
                         row["id"],
-                        _failed_completion("상세페이지 생성에 실패했습니다."),
+                        _failed_completion(
+                            "상세페이지 생성에 실패했습니다.",
+                            AsyncError.model_validate(input_error) if input_error else None,
+                        ),
                     )
                 except Exception as callback_exc:  # noqa: BLE001
                     application.fail_job(row["id"], callback_exc)
             else:
                 application.fail_job(row["id"], exc)
-            emit("job_failed", run_id=record_id, error_type=type(exc).__name__)
+            emit(
+                "job_failed",
+                run_id=record_id,
+                error_type=type(exc).__name__,
+                error_code=input_error["code"] if input_error else None,
+            )
 
 
 def _references(context):
@@ -390,10 +400,10 @@ def _upload_outputs(client, rendered, failed_blocks):
 def generate(row):
     run_id, project = row["id"], row["project_id"]
     context, review, messages = application.worker_context(run_id)
+    references = _references(context)
     info = ProjectInput.from_context(context, review)
     scene, fixed = plan(info, review)
     draft = _write_copy(run_id, info, review, messages, scene, fixed)
-    references = _references(context)
     sources, failed_blocks = _generate_source_images(info, scene, draft, references)
     rendered = _render_blocks(scene, sources, failed_blocks)
     client = BackendClient(project)

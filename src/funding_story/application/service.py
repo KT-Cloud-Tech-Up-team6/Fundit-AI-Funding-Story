@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from ..domain.repositories import Record, RecordRepository
+from ..input_image_errors import InputImageValidationError
 from ..job_lease import leased_record
 from ..models import (
     ConfirmRequest,
@@ -339,6 +340,8 @@ class FundingStoryApplication:
             "retryable": True,
             "detail": None,
         }
+        if isinstance(exc, InputImageValidationError):
+            error = exc.public_error()
         row["data"].update(status="failed", error=error)
         self._records.save(record_id, row["data"])
         if row["kind"] == "chat":

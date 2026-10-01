@@ -36,7 +36,7 @@ def test_public_image_reader_checks_mime_and_actual_bytes(monkeypatch):
         )
     ) as client:
         monkeypatch.setattr(media.httpx, "stream", client.stream)
-        with pytest.raises(ValueError, match="MIME"):
+        with pytest.raises(ValueError, match="지원하지 않는 이미지 형식"):
             media.read_public_image("https://files.example.com/body.png")
 
     with httpx.Client(

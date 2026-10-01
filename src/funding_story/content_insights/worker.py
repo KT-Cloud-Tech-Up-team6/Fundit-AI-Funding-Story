@@ -1,6 +1,7 @@
 from time import perf_counter
 
 from ..config import settings
+from ..input_image_errors import InputImageValidationError
 from ..observability import emit
 from .generators import GENERATOR_REGISTRY, ArtifactGenerator
 from .models import ArtifactType, ProjectSnapshot
@@ -56,4 +57,5 @@ def execute_artifact(
                 prompt_version=generator.prompt_version,
                 duration_ms=round((perf_counter() - started) * 1000),
                 error_type=type(exc).__name__,
+                error_code=exc.code if isinstance(exc, InputImageValidationError) else None,
             )

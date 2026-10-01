@@ -8,6 +8,7 @@ import httpx
 
 from ..application import ApplicationConflict, ApplicationInvalid
 from ..domain.repositories import Record, RecordRepository
+from ..input_image_errors import InputImageValidationError
 from ..job_lease import leased_record
 from ..media import ImageReadUrlExpired
 from .models import (
@@ -346,6 +347,12 @@ class ContentInsightsApplication:
         retryable = code in (429, 500, 502, 503, 504) or isinstance(
             exc, (TimeoutError, ConnectionError, httpx.TransportError)
         )
+        message = (
+            "이미지 읽기 URL이 만료되었습니다. 새 URL과 새 idempotency_key로 같은 source_revision을 요청하세요."
+            if isinstance(exc, ImageReadUrlExpired) else "생성 작업에 실패했습니다."
+        )
+        if isinstance(exc, InputImageValidationError):
+            code, message, retryable = exc.code, str(exc), False
         artifact["data"].update(
             status=ArtifactStatus.FAILED.value,
             output=None,
@@ -354,10 +361,7 @@ class ContentInsightsApplication:
             error={
                 "code": str(code) if code is not None else type(exc).__name__.upper(),
                 "retryable": retryable,
-                "message": (
-                    "이미지 읽기 URL이 만료되었습니다. 새 URL과 새 idempotency_key로 같은 source_revision을 요청하세요."
-                    if isinstance(exc, ImageReadUrlExpired) else "생성 작업에 실패했습니다."
-                ),
+                "message": message,
             },
             expired_image_slot=exc.slot_id if isinstance(exc, ImageReadUrlExpired) else None,
         )
