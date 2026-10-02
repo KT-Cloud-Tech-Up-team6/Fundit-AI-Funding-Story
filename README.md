@@ -170,6 +170,7 @@ and migration validation. Rendering tests use real Chromium and Pretendard.
 
 - [API and execution contract](docs/architecture.md)
 - [OpenAPI](docs/openapi.json)
+- [채팅 이미지 첨부 계약](docs/chat-image-attachments.md)
 - [Development and configuration](docs/development.md)
 - [Funding Story AI deployment environment variables](docs/funding-story-ai-env.md)
 - [Funding Story AI infrastructure delivery](docs/funding-story-ai-infra-delivery.md)

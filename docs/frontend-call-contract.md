@@ -8,7 +8,7 @@ BE가 사용자·프로젝트 권한을 검사한 뒤 같은 path로 AI를 호�
 | 세션 복구 | `GET /api/v1/ai/sessions/latest` | TTL 만료 시 `session=null` |
 | 세션 생성 | `POST /api/v1/ai/sessions` + `{}` | BE가 Core context를 구성해 AI에 추가 |
 | 첫 질문 | `POST /api/v1/ai/sessions/{session_id}/start` | `chat_id` 반환 |
-| 답변 전송 | `POST /api/v1/ai/sessions/{session_id}/messages` | `message_id/revision/text` |
+| 답변 전송 | `POST /api/v1/ai/sessions/{session_id}/messages` | `message_id/revision/text`, 선택 `attachments` |
 | 응답 수신 | `GET /api/v1/ai/chats/{chat_id}/events` | `message` 누적 text, `done` terminal event |
 | 요약 확인 | `POST /api/v1/ai/sessions/{session_id}/confirm` | 현재 `revision` |
 | 전체 생성 | `POST /api/v1/ai/runs` | `session_id/confirmed_revision/idempotency_key` |
@@ -38,6 +38,16 @@ SSE가 끊기면 새 `message_id`로 자동 재전송하지 않는다. 먼저 �
 동일한 입력을 다시 접수해야 할 때만 같은 `message_id`를 재사용한다. 생성 완료 여부는 로딩
 애니메이션이 아니라 `run.status`와 `GET /api/v1/ai/runs/{run_id}` 응답으로 판단한다.
 
+### 채팅 이미지 첨부
+
+FE는 기존 프로젝트 이미지 업로드 API가 반환한 `file_url`과 선택 `reward_id`를 메시지의
+`attachments` 배열로 BE에 전달한다. 이미지가 있으면 텍스트는 비어 있어도 된다.
+BE가 이미지 권한·객체를 검증하고 AI용 참조와 갱신된 context를 구성한다.
+세션 응답의 사용자 메시지에는 첨부 메타데이터가 포함되며, 첨부가 없는 메시지는 기존 형식을 유지한다.
+
+공개/내부 요청, URL 재발급 및 최종 생성 규칙은
+[채팅 이미지 첨부 계약](chat-image-attachments.md)을 따른다. AI 계약을 반영한 BE 배포 후 FE에서 기능을 연결한다.
+
 ### 입력 이미지 오류
 
 채팅 SSE의 `done.error`, 생성 완료 callback의 `error`, Content Insights의 artifact `error`에서
@@ -49,8 +59,9 @@ SSE가 끊기면 새 `message_id`로 자동 재전송하지 않는다. 먼저 �
 | `INPUT_IMAGE_UNSUPPORTED_TYPE` | JPEG·PNG·WebP 이외의 Content-Type |
 | `INPUT_IMAGE_INVALID` | 이미지 파일을 읽거나 검증할 수 없음 |
 
-AI는 이미지를 자동 변환하지 않고 모델 호출 전에 거부한다. 이미지 수정 후에는 BE가 최신 이미지
-정보로 새 Funding Story 세션을 생성해야 한다. 기존 세션은 처음 받은 Core context와 읽기 URL을 보관한다.
+AI는 이미지를 자동 변환하지 않고 모델 호출 전에 거부한다. 기존 파일을 수정했다면 BE가 최신 이미지
+정보로 새 Funding Story 세션을 생성한다. 채팅 첨부는 새 파일 ID로 다시 업로드해 전달할 수 있다.
+이후 메시지·최종 생성 시에는 BE가 이전 첨부를 포함한 최신 context와 읽기 URL을 전달한다.
 
 관련 작업: [FE 예시 이미지 수정 #534](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-FE/issues/534),
 [BE 업로드 이미지 검증 #224](https://github.com/KT-Cloud-Tech-Up-team6/Fundit-backend/issues/224).

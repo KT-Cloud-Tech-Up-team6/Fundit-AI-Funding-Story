@@ -106,18 +106,19 @@ def ready():
     API_PREFIX + "/sessions",
     status_code=201,
     response_model=SessionResponse,
+    response_model_exclude_unset=True,
     responses={400: {"model": ErrorResponse}, 401: {"model": ErrorResponse}},
 )
 def create_session(body: SessionCreateRequest, project: Project):
     return application.create_session(project, body)
 
 
-@app.get(API_PREFIX + "/sessions/latest", response_model=LatestSessionResponse)
+@app.get(API_PREFIX + "/sessions/latest", response_model=LatestSessionResponse, response_model_exclude_unset=True)
 def latest_session(project: Project):
     return {"session": application.latest_session(project)}
 
 
-@app.get(API_PREFIX + "/sessions/{session_id}", response_model=SessionResponse)
+@app.get(API_PREFIX + "/sessions/{session_id}", response_model=SessionResponse, response_model_exclude_unset=True)
 def get_session(session_id: str, project: Project):
     return application.get_session(session_id, project)
 

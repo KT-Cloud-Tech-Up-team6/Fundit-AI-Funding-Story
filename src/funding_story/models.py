@@ -142,10 +142,45 @@ class Review(StrictModel):
         return self
 
 
+class ChatImageRef(SourceImageRef):
+    slot_id: str = Field(min_length=6, max_length=200, pattern=r"^chat\.[A-Za-z0-9_-]+$")
+    file_url: HttpUrl
+
+    @model_validator(mode="after")
+    def unsigned_file_url(self):
+        if (
+            self.file_url.scheme != "https" or self.file_url.query or self.file_url.fragment
+            or self.file_url.username or self.file_url.password
+        ):
+            raise ValueError("file_url은 서명·인증정보가 없는 HTTPS 파일 URL이어야 합니다.")
+        return self
+
+
+class ChatAttachment(StrictModel):
+    """Public attachment metadata; signed read URLs stay inside the AI session."""
+
+    slot_id: str
+    file_url: HttpUrl
+    reward_id: int | None = None
+    content_type: Literal["image/jpeg", "image/png", "image/webp"]
+    file_size: int
+
+
 class MessageRequest(StrictModel):
     message_id: str = Field(min_length=1, max_length=100)
     revision: int = Field(ge=1)
-    text: str = Field(min_length=1, max_length=12000)
+    text: str = Field(default="", max_length=12000)
+    attachments: list[ChatImageRef] = Field(default_factory=list, max_length=30)
+    context: FundingStoryContext | None = None
+
+    @model_validator(mode="after")
+    def valid_message(self):
+        if not self.text and not self.attachments:
+            raise ValueError("메시지 또는 첨부 이미지가 필요합니다.")
+        slots = [image.slot_id for image in self.attachments]
+        if len(set(slots)) != len(slots):
+            raise ValueError("첨부 이미지 slot_id는 중복될 수 없습니다.")
+        return self
 
 
 class ConfirmRequest(StrictModel):
@@ -162,6 +197,7 @@ class RunRequest(StrictModel):
 class ChatMessage(StrictModel):
     role: Literal["assistant", "user"]
     text: str
+    attachments: list[ChatAttachment] = Field(default_factory=list)
 
 
 class StrengthSummary(StrictModel):
