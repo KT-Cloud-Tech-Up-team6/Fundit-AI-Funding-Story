@@ -3,6 +3,9 @@ import json
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
+
+from pydantic import ValidationError
 
 from ..config import settings
 from ..domain.repositories import Record, RecordRepository
@@ -15,6 +18,7 @@ from ..models import (
     Review,
     RunRequest,
     SessionCreateRequest,
+    SourceImageRef,
 )
 from ..worker_errors import JobOwnershipLost
 
@@ -27,14 +31,67 @@ class ApplicationInvalid(Exception):
     pass
 
 
-def _fingerprint(body: RunRequest) -> str:
+def _image_identity(image: dict) -> dict:
+    # A reissued signature identifies the same object. Host/path changes do not.
+    reference = SourceImageRef.model_validate({key: value for key, value in image.items() if key != "file_url"})
+    identity = reference.model_dump(mode="json", exclude={"read_url", "expires_at"})
+    identity["object_url"] = str(reference.read_url).split("?", 1)[0].split("#", 1)[0]
+    return identity
+
+
+def _request_fingerprint(body: MessageRequest | RunRequest) -> str:
+    data = body.model_dump(mode="json")
+    if isinstance(body, MessageRequest):
+        # Core context and its expiring read URLs are refreshed by BE independently
+        # of the seller's message. Only the message and attached objects define it.
+        data.pop("context")
+        data["attachments"] = [
+            {**_image_identity(image), "file_url": image["file_url"]} for image in data["attachments"]
+        ]
+    else:
+        data["context"]["source_images"] = [
+            _image_identity(image) for image in data["context"]["source_images"]
+        ]
     canonical = json.dumps(
-        body.model_dump(mode="json"),
+        data,
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
     )
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _legacy_run_fingerprint(body: RunRequest) -> str:
+    canonical = json.dumps(
+        body.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":"), sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _public_attachment(image: dict) -> dict:
+    return {key: image[key] for key in ("slot_id", "file_url", "reward_id", "content_type", "file_size")}
+
+
+def _refreshed_context(data: dict, context: FundingStoryContext) -> FundingStoryContext:
+    """Require every accepted chat attachment when BE refreshes the Core context."""
+    slots = {
+        attachment["slot_id"]
+        for message in data.get("messages", [])
+        for attachment in message.get("attachments", [])
+    }
+    previous = {image["slot_id"]: image for image in data["context"]["source_images"]}
+    current = {image.slot_id: image.model_dump(mode="json") for image in context.source_images}
+    for slot in slots:
+        if slot not in current:
+            raise ApplicationInvalid("기존 채팅 첨부 이미지를 포함해 읽기 URL을 다시 발급해 주세요.")
+        if _image_identity(previous[slot]) != _image_identity(current[slot]):
+            raise ApplicationConflict("기존 첨부 이미지의 파일 또는 메타데이터가 변경되었습니다.")
+        if SourceImageRef.model_validate(current[slot]).expires_at <= datetime.now(UTC):
+            raise ApplicationInvalid("첨부 이미지 읽기 URL을 다시 발급해 주세요.")
+    # New chat attachments must first be accepted as part of a message.
+    if any(slot.startswith("chat.") and slot not in slots for slot in current):
+        raise ApplicationInvalid("새 첨부 이미지는 채팅 메시지로 먼저 전달해 주세요.")
+    return context
 
 
 class FundingStoryApplication:
@@ -65,7 +122,10 @@ class FundingStoryApplication:
             "revision": row["revision"],
             "confirmed_revision": data.get("confirmed_revision"),
             "messages": [
-                {"role": message["role"], "text": message["text"]}
+                {
+                    "role": message["role"], "text": message["text"],
+                    **({"attachments": message["attachments"]} if message.get("attachments") else {}),
+                }
                 for message in data.get("messages", [])
             ],
             "missing": review.missing if review is not None else [],
@@ -136,12 +196,20 @@ class FundingStoryApplication:
         body: MessageRequest,
         project: str,
     ) -> tuple[dict, bool]:
+        fingerprint = _request_fingerprint(body)
         with self._records.transaction() as tx:
             session = tx.get(session_id, project, lock=True, kind="session")
             data = session["data"]
             existing = data["message_requests"].get(body.message_id)
             if existing:
-                if existing["text"] != body.text or existing["revision"] != body.revision:
+                matches = (
+                    existing["fingerprint"] == fingerprint
+                    if "fingerprint" in existing
+                    else not body.attachments
+                    and existing["text"] == body.text
+                    and existing["revision"] == body.revision
+                )
+                if not matches:
                     raise ApplicationConflict("동일 요청 ID의 내용이 다릅니다.")
                 return self._chat_accepted(tx.get(existing["chat_id"], project, kind="chat")), False
             if session["revision"] != body.revision:
@@ -154,6 +222,27 @@ class FundingStoryApplication:
                 raise ApplicationConflict("이전 답변을 처리 중입니다.")
             if data.get("active_run_id"):
                 raise ApplicationConflict("전체 생성 작업을 처리 중입니다.")
+            context = (
+                _refreshed_context(data, body.context)
+                if body.context is not None
+                else FundingStoryContext.model_validate(data["context"])
+            )
+            images = {image.slot_id: image.model_dump(mode="json") for image in context.source_images}
+            for image in body.attachments:
+                serialized = image.model_dump(mode="json", exclude={"file_url"})
+                if image.expires_at <= datetime.now(UTC):
+                    raise ApplicationInvalid("첨부 이미지 읽기 URL을 다시 발급해 주세요.")
+                if image.slot_id in images and _image_identity(images[image.slot_id]) != _image_identity(serialized):
+                    raise ApplicationConflict("동일 첨부 이미지 ID의 파일 또는 메타데이터가 다릅니다.")
+                images[image.slot_id] = serialized
+            try:
+                context = FundingStoryContext.model_validate(
+                    {**context.model_dump(mode="json"), "source_images": list(images.values())}
+                )
+            except ValidationError as exc:
+                raise ApplicationInvalid("첨부 이미지 수 또는 리워드 정보가 올바르지 않습니다.") from exc
+            if any(image.expires_at <= datetime.now(UTC) for image in context.source_images):
+                raise ApplicationInvalid("입력 이미지 읽기 URL을 갱신한 context를 전달해 주세요.")
             chat_id = tx.create(
                 project,
                 "chat",
@@ -165,11 +254,18 @@ class FundingStoryApplication:
                     "error": None,
                 },
             )
-            data["messages"].append({"role": "user", "text": body.text})
+            data["context"] = context.model_dump(mode="json")
+            message = {"role": "user", "text": body.text}
+            if body.attachments:
+                message["attachments"] = [
+                    _public_attachment(image.model_dump(mode="json")) for image in body.attachments
+                ]
+            data["messages"].append(message)
             data["message_requests"][body.message_id] = {
                 "text": body.text,
                 "revision": body.revision,
                 "chat_id": chat_id,
+                "fingerprint": fingerprint,
             }
             data.update(active_chat_id=chat_id, confirmed_revision=None)
             tx.save(session_id, data)
@@ -215,13 +311,13 @@ class FundingStoryApplication:
         return {"session_id": session_id, "confirmed_revision": body.revision}
 
     def create_run(self, body: RunRequest, project: str) -> tuple[dict, bool]:
-        fingerprint = _fingerprint(body)
+        fingerprint = _request_fingerprint(body)
         with self._records.transaction() as tx:
             tx.lock_request(project + body.idempotency_key)
             session = tx.get(body.session_id, project, lock=True, kind="session")
             existing = tx.get_request(project, body.idempotency_key)
             if existing:
-                if existing["fingerprint"] != fingerprint:
+                if existing["fingerprint"] not in (fingerprint, _legacy_run_fingerprint(body)):
                     raise ApplicationConflict("중복 키의 입력이 다릅니다.")
                 row = tx.get(existing["record_id"], project, kind="run")
                 return {"run_id": row["id"], "status": "queued"}, False
@@ -237,7 +333,8 @@ class FundingStoryApplication:
                     raise ApplicationConflict("전체 생성 작업을 처리 중입니다.")
             # The latest Core context replaces the session's previous context. It is not copied
             # into a durable run snapshot.
-            session["data"]["context"] = body.context.model_dump(mode="json")
+            context = _refreshed_context(session["data"], body.context)
+            session["data"]["context"] = context.model_dump(mode="json")
             tx.save(body.session_id, session["data"])
             run_id = tx.create(
                 project,

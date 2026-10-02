@@ -1357,6 +1357,123 @@
         ],
         "title": "ChatAcceptedResponse"
       },
+      "ChatAttachment": {
+        "properties": {
+          "slot_id": {
+            "type": "string",
+            "title": "Slot Id"
+          },
+          "file_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "File Url"
+          },
+          "reward_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward Id"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "title": "Content Type"
+          },
+          "file_size": {
+            "type": "integer",
+            "title": "File Size"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slot_id",
+          "file_url",
+          "content_type",
+          "file_size"
+        ],
+        "title": "ChatAttachment",
+        "description": "Public attachment metadata; signed read URLs stay inside the AI session."
+      },
+      "ChatImageRef": {
+        "properties": {
+          "slot_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 6,
+            "pattern": "^chat\\.[A-Za-z0-9_-]+$",
+            "title": "Slot Id"
+          },
+          "reward_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reward Id"
+          },
+          "read_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Read Url"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "title": "Content Type"
+          },
+          "file_size": {
+            "type": "integer",
+            "maximum": 10485760.0,
+            "exclusiveMinimum": 0.0,
+            "title": "File Size"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "file_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "File Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slot_id",
+          "read_url",
+          "content_type",
+          "file_size",
+          "expires_at",
+          "file_url"
+        ],
+        "title": "ChatImageRef"
+      },
       "ChatMessage": {
         "properties": {
           "role": {
@@ -1370,6 +1487,13 @@
           "text": {
             "type": "string",
             "title": "Text"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/ChatAttachment"
+            },
+            "type": "array",
+            "title": "Attachments"
           }
         },
         "additionalProperties": false,
@@ -1608,16 +1732,33 @@
           "text": {
             "type": "string",
             "maxLength": 12000,
-            "minLength": 1,
-            "title": "Text"
+            "title": "Text",
+            "default": ""
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/ChatImageRef"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Attachments"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FundingStoryContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "message_id",
-          "revision",
-          "text"
+          "revision"
         ],
         "title": "MessageRequest"
       },
